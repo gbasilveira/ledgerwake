@@ -96,6 +96,18 @@ describe('capture hook script', () => {
     expect(mapHookEvent(readFileSync(join(dir, files[0]!), 'utf8')).event.kind).toBe('tool.call');
   });
 
+  it('never breaks the pipe of the process writing the payload, even when it cannot capture', () => {
+    // A large payload to a hook that fails early used to end with EPIPE for the writer (the agent).
+    const big = JSON.stringify({
+      hook_event_name: 'PostToolUse',
+      tool_response: 'x'.repeat(2_000_000),
+    });
+    for (let i = 0; i < 25; i++) {
+      expect(runHook({ LW_HOME: '/proc/ledgerwake-test' }, big)).toBe('');
+      expect(runHook({}, big)).toBe('');
+    }
+  });
+
   it('exits 0 and writes nothing when it cannot write or has no home', () => {
     expect(runHook({ LW_HOME: '/proc/ledgerwake-test' }, '{}')).toBe('');
     expect(runHook({}, '{}')).toBe('');

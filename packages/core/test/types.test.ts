@@ -159,3 +159,15 @@ describe('native documents against their type', () => {
     });
   });
 });
+
+describe('type document safety', () => {
+  const doc = (pattern: string) =>
+    `---\nlw: 1\ntype: process-type\nname: t\nkey_prefix: T-\nkey_pattern: "${pattern}"\nstates: [A]\ninitial: A\n---\n`;
+
+  it('refuses key patterns that can backtrack without bound, and overlong ones', () => {
+    expect(parseProcessType(doc('(a+)+$'), 'x').type).toBeNull();
+    expect(parseProcessType(doc('(x*)*y'), 'x').problems[0]!.code).toBe('type-key-pattern');
+    expect(parseProcessType(doc('a'.repeat(200)), 'x').type).toBeNull();
+    expect(parseProcessType(doc('T-\\\\d{3}[a-z]?'), 'x').type).not.toBeNull();
+  });
+});

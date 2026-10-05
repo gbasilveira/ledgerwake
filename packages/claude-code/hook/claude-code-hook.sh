@@ -10,21 +10,26 @@
 # It must never block or fail the agent (SPEC §6.1): no network, no output on
 # stdout, every error ignored, exit status always 0.
 
-{
+capture() {
   umask 077
   home="${LW_HOME:-}"
   if [ -z "$home" ] && [ -n "${HOME:-}" ]; then home="$HOME/.ledgerwake"; fi
-  if [ -z "$home" ]; then exit 0; fi
+  [ -n "$home" ] || return 0
   spool="$home/spool/claude-code"
-  mkdir -p "$spool/tmp" "$spool/new"
+  mkdir -p "$spool/tmp" "$spool/new" || return 0
   ms="$(date +%s%3N)"
   case "$ms" in *N) ms="$(date +%s)000" ;; esac
-  tmp="$(mktemp "$spool/tmp/$ms-$$-XXXXXX")"
+  tmp="$(mktemp "$spool/tmp/$ms-$$-XXXXXX")" || return 0
   esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\000-\037'; }
   if [ -n "${LW_ITEM:-}" ]; then item="\"$(esc "$LW_ITEM")\""; else item=null; fi
   printf '{"spool":"claude-code/0","received_at":%s,"host":"%s","lw_item":%s}\n' \
-    "$ms" "$(esc "$(uname -n)")" "$item" > "$tmp"
-  cat >> "$tmp"
+    "$ms" "$(esc "$(uname -n)")" "$item" > "$tmp" || return 0
+  cat >> "$tmp" || return 0
   mv "$tmp" "$spool/new/${tmp##*/}.json"
-} >/dev/null 2>&1
+}
+
+capture >/dev/null 2>&1
+# Whatever happened above, read what is left of the payload, so the process writing it to us never
+# sees a broken pipe: failing the agent's hook runner is exactly what this script must not do.
+cat >/dev/null 2>&1
 exit 0

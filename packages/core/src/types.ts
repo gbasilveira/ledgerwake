@@ -15,6 +15,9 @@ import { systemRandom, ulid } from './ulid.js';
 
 const NAME = /^[a-z][a-z0-9-]*$/;
 
+/** Shapes such as `(a+)+` that make a regular expression backtrack without bound. */
+const NESTED_QUANTIFIER = /\((?:[^()\\]|\\.)*[+*}](?:[^()\\]|\\.)*\)[+*{]/;
+
 const stateMap = z.record(z.string(), z.string());
 
 export const ProcessTypeSchema = z.looseObject({
@@ -105,6 +108,8 @@ export function parseProcessType(
     if (!states.has(state)) unknown('required_sections_by_state', state);
   if (t.key_pattern !== undefined) {
     try {
+      if (t.key_pattern.length > 120 || NESTED_QUANTIFIER.test(t.key_pattern))
+        throw new Error('too long or nested quantifiers');
       new RegExp(`^${t.key_pattern}$`);
     } catch {
       problems.push({
@@ -170,6 +175,9 @@ export function normaliseState(type: ProcessType, raw: string | null): string | 
   if (type.states.includes(raw)) return raw;
   return type.aliases[raw] ?? null;
 }
+
+/** Keys are short; longer strings never match, which also bounds the work of any pattern. */
+export const MAX_KEY_LENGTH = 64;
 
 export function keyPattern(type: ProcessType): RegExp {
   return new RegExp(`^${type.key_pattern ?? `${escape(type.key_prefix)}\\d{${type.key_width},}`}$`);

@@ -22,12 +22,45 @@ const AGENT_TRAILER = /claude|anthropic|copilot|codex|gemini|cursor|\bagent\b|\b
 const RS = '\x1e';
 const US = '\x1f';
 
+/**
+ * Runs git read-only on a repository the owner registered. `safe.directory` is set for that one
+ * path only (the registry is the owner's trust decision); the other settings stop a repository's
+ * own configuration from running programs or writing: no fsmonitor, no pager, no external diff or
+ * textconv, no hooks, no optional locks.
+ */
 function git(root: string, args: string[]): string {
-  return execFileSync('git', ['-c', `safe.directory=${root}`, '-C', root, ...args], {
-    encoding: 'utf8',
-    maxBuffer: 512 * 1024 * 1024,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  return execFileSync(
+    'git',
+    [
+      '-c',
+      `safe.directory=${root}`,
+      '-c',
+      'core.fsmonitor=false',
+      '-c',
+      'core.pager=cat',
+      '-c',
+      'core.hooksPath=/dev/null',
+      '-c',
+      'diff.external=',
+      '-c',
+      'protocol.ext.allow=never',
+      '-C',
+      root,
+      '--no-pager',
+      ...args,
+    ],
+    {
+      encoding: 'utf8',
+      maxBuffer: 512 * 1024 * 1024,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        GIT_OPTIONAL_LOCKS: '0',
+        GIT_TERMINAL_PROMPT: '0',
+        GIT_EXTERNAL_DIFF: '',
+      },
+    },
+  );
 }
 
 /** Whether `root` is inside a git working tree. */

@@ -17,6 +17,7 @@ import type { ProjectConfig } from './project.js';
 import {
   keyPattern,
   loadTypes,
+  MAX_KEY_LENGTH,
   normaliseState,
   type ProcessType,
   requiredSections,
@@ -142,7 +143,7 @@ export function buildIndex(dir: string, config: ProjectConfig): ProjectIndex {
         path,
         message: `${item.key}: '${item.status}' is not a state of type ${type.name}`,
       });
-    if (!keyPattern(type).test(item.key))
+    if (item.key.length > MAX_KEY_LENGTH || !keyPattern(type).test(item.key))
       result.diagnostics.push({
         level: 'warning',
         code: 'key-pattern',
@@ -458,7 +459,7 @@ function buildNative(dir: string, config: ProjectConfig, types: Map<string, Proc
       diagnostics.push({ level: 'error', code, path, message: `${doc.key}: ${message}` });
     if (!type) problem('unknown-type', `unknown process type '${doc.type}'`);
     else {
-      if (!keyPattern(type).test(doc.key))
+      if (doc.key.length > MAX_KEY_LENGTH || !keyPattern(type).test(doc.key))
         problem('key-pattern', `key does not match type ${type.name}`);
       if (doc.status !== undefined && state === null)
         problem('unknown-state', `'${doc.status}' is not a state of type ${type.name}`);

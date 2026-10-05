@@ -20,9 +20,14 @@ export const CAPTURE_EVENTS = [
   'TaskCompleted',
 ] as const;
 
+/** Quotes a path for `sh -c` unless it is made only of safe characters. */
+export function shellQuote(path: string): string {
+  return /^[\w@%+=:,./-]+$/.test(path) ? path : `'${path.replace(/'/g, `'\\''`)}'`;
+}
+
 /** A synchronous command hook (SPEC §6.1): not `http`, not `async`. */
 export function captureHook(command: string): { type: 'command'; command: string } {
-  return { type: 'command', command };
+  return { type: 'command', command: shellQuote(command) };
 }
 
 type HookGroup = { matcher?: string; hooks: { type: string; command?: string }[] };
@@ -37,7 +42,7 @@ export function withCaptureHooks(settings: Settings, command: string): Settings 
   for (const event of CAPTURE_EVENTS) {
     const groups = [...(hooks[event] ?? [])];
     const present = groups.some((g) =>
-      g.hooks?.some((h) => h.type === 'command' && h.command === command),
+      g.hooks?.some((h) => h.type === 'command' && h.command === shellQuote(command)),
     );
     if (!present) groups.push({ matcher: '*', hooks: [captureHook(command)] });
     hooks[event] = groups;

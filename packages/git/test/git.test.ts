@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -133,5 +133,25 @@ describe('branch membership', () => {
       rule: 'merge',
     });
     expect(branchMembership(repo, ['WO-00']).size).toBe(0);
+  });
+});
+
+describe('git is read-only and ignores repository programs', () => {
+  it('does not run a repository-configured fsmonitor, pager or hook', () => {
+    const repo = makeRepo();
+    const marker = join(repo, 'RAN');
+    const script = join(repo, 'evil.sh');
+    writeFileSync(script, `#!/bin/sh\ntouch '${marker}'\n`, { mode: 0o755 });
+    const g = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { stdio: 'pipe' });
+    g('config', 'core.fsmonitor', script);
+    g('config', 'core.pager', script);
+    g('config', 'diff.external', script);
+    const before = execFileSync('git', ['-C', repo, 'count-objects'], { stdio: 'pipe' }).toString();
+    expect(readCommits(repo).length).toBe(2);
+    expect(branchMembership(repo, ['demo-wo-001-skeleton']).size).toBe(1);
+    expect(existsSync(marker)).toBe(false);
+    expect(execFileSync('git', ['-C', repo, 'count-objects'], { stdio: 'pipe' }).toString()).toBe(
+      before,
+    );
   });
 });
