@@ -12,7 +12,8 @@
     "typecheck": "pnpm -r run typecheck",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "lw": "node packages/cli/dist/main.js"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
