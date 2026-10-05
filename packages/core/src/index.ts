@@ -1,4 +1,5 @@
 export * from './clock.js';
+export * from './capture.js';
 export * from './diagnostics.js';
 export * from './embedded.js';
 export * from './envelope.js';

@@ -149,7 +149,13 @@ Every observation is one JSON object, one per line (JSON Lines).
   `prompt`, `response`, `thinking`, `tool.call`, `tool.result`, `agent.start`,
   `agent.stop`, `mcp.connect`, `skill.use`, `usage` (tokens and cost),
   `fs.cwd_changed`, `git.commit`, `process.transition`, `process.log` (an
-  entry of an orchestration log), `error`.
+  entry of an orchestration log), `turn.end` (the agent finished a turn),
+  `notification`, `session.compact`, `hook.error` (an agent reported that a
+  hook failed or was cancelled), `error`. An adapter MAY emit
+  `<agent>.<event>` for native signals without a v0 kind (for example
+  `claude_code.worktree_create`).
+- `source.channel` names how the adapter saw the event (`hook`, `transcript`,
+  `otel`, …).
 - `content.level` is one of `metadata`, `summary`, `full`. Prompt, response,
   thinking and tool output are `full` content and are stored by reference
   (`content.ref`), never inline in the central index by default.
@@ -187,21 +193,32 @@ The first that resolves wins; the link records which rule produced it.
 
 ## 6. Capture and delivery
 
-1. **Spool.** Each hook appends the event to a local, append-only file and
-   returns immediately. A hook MUST NOT block or fail the agent. Agent hooks
+1. **Spool.** Each hook writes the event to the local spool and returns
+   immediately. The spool is a directory of immutable files, one per event,
+   written under `tmp/` and renamed into `new/`, so a reader never sees a
+   partial event and concurrent hooks never interleave (a single append-only
+   file cannot promise that for payloads larger than one `write`). Spool files
+   are private to the user (mode 0600). A hook MUST NOT block or fail the agent. Agent hooks
    are synchronous (a slow hook delays the agent by its full duration), so the
    capture hook MUST be a local command that performs no network I/O. HTTP hooks
    and asynchronous hooks MUST NOT be used for capture: the first blocks on the
    server, the second loses events when the agent process exits.
 2. **Forwarder.** A separate process ships spooled events to the local store
    and, optionally, to a central server, retrying with the event `id` as the
-   idempotency key.
+   idempotency key. It removes a spool file only after the event is committed,
+   so a crash at any point loses nothing.
+   The same observation can reach the store through several channels (a hook
+   and a transcript). Adapters give each observation a **natural key**, for
+   example `tool.call:<session>:<tool_use_id>`; the store keeps the first event
+   for a natural key and ignores later ones.
 3. **Git is the durable ledger.** Commits are recorded (`git.commit`) by a
    `post-commit` hook and by the reconciler, so work by agents without hooks is
    still visible.
 4. **Reconciler.** Periodically compares repositories and transcripts with the
    index and fills gaps. It is the safety net for a lost event or a stopped
-   server.
+   server. It reads transcripts incrementally from a committed byte position
+   and only up to the last complete line; natural keys keep it from doubling
+   what hooks already captured.
 5. **Verification, not memory.** Obligations on agents (for example "fill in
    `RESULT`") are checked by code at sub-agent stop or pre-commit, never left to
    the agent to remember.
@@ -251,8 +268,11 @@ paths:
   log: docs/orchestration-log/LOG.md
 ```
 
-- A **local installation** keeps a SQLite store and the spool; it is complete on
-  its own.
+- A **local installation** (`$LW_HOME`, by default `~/.ledgerwake`) keeps a
+  SQLite store (`data/store.db`), the spool (`spool/<agent>/`) and the installed
+  hook (`bin/`); it is complete on its own. Full content (prompts, responses,
+  tool input and output) is kept in the local store's content table, addressed
+  by `sha256:<hex>`, and referenced from events by `content.ref`.
 - A **central server** receives events (an HTTP/JSON endpoint and OTLP) and reads
   remote git repositories itself, so the state of the files never depends on
   agents reporting. Storage is PostgreSQL.

@@ -5,6 +5,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@ledgerwake/core': fileURLToPath(new URL('./packages/core/src/index.ts', import.meta.url)),
+      '@ledgerwake/claude-code': fileURLToPath(
+        new URL('./packages/claude-code/src/index.ts', import.meta.url),
+      ),
+      '@ledgerwake/store': fileURLToPath(new URL('./packages/store/src/index.ts', import.meta.url)),
     },
   },
   test: {

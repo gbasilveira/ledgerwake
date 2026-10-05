@@ -21,6 +21,10 @@ export const EVENT_KINDS = [
   'git.commit',
   'process.transition',
   'process.log',
+  'turn.end',
+  'notification',
+  'session.compact',
+  'hook.error',
   'error',
 ] as const;
 

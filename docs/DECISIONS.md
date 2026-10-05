@@ -51,3 +51,52 @@ but which still has `[ ]` task markers is reported as a `task-drift` warning
 markers in older work orders were not maintained. On the VERA fixture
 (`b4a257b`) 25 accepted work orders are affected, 17 of them with no task
 ticked at all (WO-002 to WO-014b, phase 0).
+
+## D-004 — Owner approvals after M1 (2026-10-05)
+
+The owner approved the environment variable `LW_ITEM` (SPEC §5.1) and the
+recommendation in `SPIKE-REPORT.md` §7: build the capture layer, use
+OpenTelemetry for cost, study agents-observe only for its interface.
+
+## D-005 — The capture hook is a shell script writing one file per event (2026-10-05)
+
+SPEC §6.1 said the hook appends to "a local, append-only file". It now writes one
+immutable file per event (`tmp/` then rename into `new/`).
+
+- Latency: hooks are synchronous (D-001). Starting Node costs ≈ 0.10 s per hook
+  on this machine (`time node -e …`, five runs 0.09–0.10 s), which is two hooks
+  per tool call. A POSIX `sh` hook measured 8.8 ms per event (200 sequential
+  runs).
+- Integrity: `cat >> file` may issue several `write` calls for large payloads
+  (tool output), so concurrent hooks could interleave in one file. With one file
+  per event, 50 concurrent hooks with 300 KB payloads produced 50 intact files.
+- The hook must not redirect from `/dev/stdin`: when stdin is a socket (Node's
+  child-process stdio, and so likely Claude Code's) opening `/dev/stdin` fails
+  and every event was silently lost. Found by the hook test; fixed before use.
+- Files are mode 0600 (`umask 077`); with no `LW_HOME` and no `HOME` the hook
+  does nothing rather than fall back to a world-readable `/tmp`.
+
+## D-006 — Local store on `node:sqlite` (2026-10-05)
+
+ARCHITECTURE proposed `better-sqlite3`. Node 22.23 ships `node:sqlite`
+(experimental, synchronous API); it needs no native build or binary download,
+which matters on a machine where installs may be offline. The CLI suppresses
+the experimental warning (`--disable-warning=ExperimentalWarning`). Revisit if
+the API changes before it is stable.
+
+## D-007 — Natural keys, content by reference, new event kinds (2026-10-05)
+
+- The same observation arrives from hooks and from transcripts with different
+  ids (their timestamps differ). Events now carry a natural key
+  (`tool.call:<session>:<tool_use_id>`, `prompt:<session>:<prompt_id>`,
+  `agent.start:<session>:<agent_id>`, `session.start:<session>:first`, …); the
+  store keeps the first. Measured on the live M2 session: 145 transcript
+  observations recognised as already captured by hooks; the transcript added
+  only what hooks cannot see (responses, usage, sub-agent prompts).
+- Prompts, responses, thinking, tool input and output, and last assistant
+  messages are kept in the local content table and referenced by
+  `content.ref`; events carry only metadata and byte counts (SPEC §5, §9.1).
+- New kinds `turn.end` (Stop hook), `notification`, `session.compact`,
+  `hook.error`; `<agent>.<event>` for other native signals; `source.channel`.
+- Transcript assistant entries carry no `promptId`; the parser carries the last
+  prompt id of the file forward.
