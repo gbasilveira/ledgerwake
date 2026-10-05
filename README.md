@@ -38,3 +38,16 @@ the VERA repository):
 ```sh
 scripts/vera-fixture.sh /path/to/vera [commit]
 ```
+
+### Capture (Claude Code)
+
+```sh
+pnpm lw hooks install --settings <project>/.claude/settings.local.json   # installs ~/.ledgerwake/bin/claude-code-hook.sh
+pnpm lw forward --watch          # spool → local store (~/.ledgerwake/data/store.db)
+pnpm lw reconcile                # backfill and gap filling from ~/.claude/projects
+pnpm lw sessions
+pnpm lw events <session>
+```
+
+The hook only writes a private file to the local spool and exits; it never
+contacts a server and never fails the agent.
