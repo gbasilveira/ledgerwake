@@ -18,7 +18,9 @@
     "@ledgerwake/core": "workspace:*",
     "@ledgerwake/dashboard": "workspace:*",
     "@ledgerwake/git": "workspace:*",
-    "@ledgerwake/store": "workspace:*",
+    "@ledgerwake/store": "workspace:*"
+  },
+  "devDependencies": {
     "pg": "^8.23.1"
   }
 }

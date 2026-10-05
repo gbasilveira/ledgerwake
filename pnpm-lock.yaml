@@ -101,6 +101,7 @@ importers:
       '@ledgerwake/store':
         specifier: workspace:*
         version: link:../store
+    devDependencies:
       pg:
         specifier: ^8.23.1
         version: 8.23.1
