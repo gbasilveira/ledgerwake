@@ -98,3 +98,15 @@ other recurring processes, for example:
 
 In each case the agents' sessions, commits and costs are linked to the item they
 worked on. Linking to records in external tools is not built.
+
+### Several machines
+
+```sh
+lw central token new --name laptop-1 --team core --scope ingest,read   # on the server; shown once
+lw central serve --tls-cert server.crt --tls-key server.key --host 0.0.0.0
+lw ship --url https://lw.example.org:8760 --token-file ~/.ledgerwake/token --watch   # on each machine
+```
+
+Only metadata is shipped (no prompts, responses or tool output), over TLS, with
+one isolated store per team. See `docs/SECURITY.md` for what it protects and
+what it does not. PostgreSQL storage is not built.

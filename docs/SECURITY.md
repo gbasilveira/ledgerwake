@@ -33,6 +33,27 @@ action path to protect, and no credential of the observed systems is held.
 | Data leaves the machine unnoticed | No network use except loopback servers and `git` on local repositories; the OpenTelemetry receiver drops personal attributes (`user.*`, `organization.*`) | `otel.test.ts` |
 | Tracking people | Git author names and e-mail addresses are not stored; only agent `Co-Authored-By` trailers | `git.test.ts` |
 
+## The central server
+
+| Threat | Defence | Check |
+|---|---|---|
+| Someone sends or reads data without permission | Bearer tokens, hashed (SHA-256) at rest in a 0600 file, compared in constant time; scopes `ingest` and `read`; revocation takes effect at once | `central.test.ts` |
+| One team reads another team's data | The token's team picks the store file; there is no team parameter to forge; team names are restricted to a safe pattern | `central.test.ts` (isolation) |
+| A token is stolen on the network | TLS required off loopback; the shipper refuses a token over `http` except to loopback; a private CA can be pinned with `--ca-file` | `central.test.ts` (TLS), `central.test.ts` in the CLI |
+| A token is stolen from the edge machine | The token file must have no group or world access; the token is never a command-line argument | `central.test.ts` |
+| Prompts or tool output leave the machine | Only metadata is shipped; the shipper and the server both drop content references; no content body is ever read for shipping | `central.test.ts` |
+| A client lies about who it is | The server stamps machine and team from the token | `central.test.ts` |
+| A malformed or huge request | Strict envelope validation of every event, whole-batch rejection, 1000 events and 8 MiB limits (413 sent before the connection closes), timeouts, no stack traces in answers | `central.test.ts` |
+| Guessing tokens | 256-bit random tokens; failures answered 401 then 429 per address | `central.test.ts` |
+| Poisoned timestamps | Events more than a day ahead are refused | `central.test.ts` |
+
+Residual risks specific to the central server: no single sign-on; tokens do not
+expire (revoke them); the failure limit is per address and in memory, so a restart
+resets it; one team's store grows without limit; the server is not hardened
+against a flood of valid, authenticated requests; and metadata still reveals
+what people work on (project names, paths, tool names, commit subjects). Keep
+it on a private network.
+
 ## Accepted risks and limits
 
 - **Same-user code.** Any process running as you can read your files, the store
@@ -51,7 +72,6 @@ action path to protect, and no credential of the observed systems is held.
 - **`node:sqlite` is experimental** in Node 22 (D-006).
 - **No authentication** on the local servers. Do not publish them; if you must,
   use `--allow-remote` behind your own authenticating proxy.
-- **Central server (M7)** is not built; this file does not cover it yet.
 
 ## Reporting
 

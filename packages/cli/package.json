@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ledgerwake/api": "workspace:*",
+    "@ledgerwake/central": "workspace:*",
     "@ledgerwake/claude-code": "workspace:*",
     "@ledgerwake/core": "workspace:*",
     "@ledgerwake/dashboard": "workspace:*",

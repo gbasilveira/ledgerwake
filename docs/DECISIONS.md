@@ -305,3 +305,25 @@ documented in SECURITY.md).
 - The hook path in generated settings is shell-quoted.
 - Process-type key patterns with nested quantifiers or over 120 characters are
   rejected, and keys over 64 characters never match.
+
+## D-022 — Central server on the local store, isolated by team (2026-10-05)
+
+- **Storage.** PostgreSQL is not built: it is not installed here and running a
+  container was not approved, so a Postgres backend could not be verified. The
+  central server uses the same store as the edge (SQLite), one file per team.
+  A Postgres adapter would sit behind the same `Store` interface and is the main
+  open item of M7.
+- **Isolation by construction.** One store per team means access control is
+  "which file does this token open", not a filter that a query could forget.
+  The cost is that cross-team views need several stores.
+- **Metadata only, twice.** The shipper strips content references and the server
+  strips them again, so a modified client cannot upload prompts. The opt-in
+  policy for full content in SPEC §9.1 is not implemented.
+- **Hashed tokens, not signed ones.** Revocation is immediate and nothing secret
+  is stored; the price is no expiry and a file read per request.
+- **Findings while testing.** An oversized body made the server cut the
+  connection instead of answering 413; it now answers, then closes. A ship test
+  that sent nothing proved nothing about a bad token; it now uses a machine
+  with unsent events.
+- **Not attributed.** Events reach the central server without project or item
+  links (those are computed from the project registry and git on the machine).

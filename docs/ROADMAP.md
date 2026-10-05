@@ -13,7 +13,9 @@ M4 done (decision records, `lw receive` for cost, API views, dashboard at
 `lw type new|list`, `lw new`, type checks in `lw check`; transitions are not
 yet checked against history); M6 done (`lw alerts` with stalled agents and items,
 rate limits, failed hooks, budgets and document errors; `lw autonomy`; both in
-the dashboard).
+the dashboard); M7 built in part (central server with tokens, team isolation,
+metadata-only privacy, TLS and `lw ship`; PostgreSQL, remote git reading and a
+central dashboard not built).
 
 ## M0 — Spike (answers SPEC §12 questions 2 and 3)
 Follow the checklist in `RESEARCH.md`. Output: `docs/SPIKE-REPORT.md` with
@@ -50,8 +52,10 @@ Rules (stalled agent, 429, WO in progress without commits for N hours, cost
 budgets). Autonomy evaluation criteria computed from the data.
 
 ## M7 — Central server and teams
-OTLP and HTTP ingestion, PostgreSQL, authentication, per-team access control,
-privacy levels, remote git reading.
+HTTP ingestion, authentication, per-team access control, privacy levels. Built
+(on SQLite, one store per team). Not built: PostgreSQL, OTLP at the central
+server, remote git reading, full-content upload, a central dashboard (see
+SPEC §8 and D-022).
 
 ## Out of scope
 Ledgerwake only monitors (D-018). Not planned: acting on agents or documents

@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import { events, forward, hooks, receive, reconcile, sessions } from './commands/capture.js';
+import { central, ship } from './commands/central.js';
 import { alertsCommand, autonomy, item, project, serve } from './commands/observe.js';
 import { check, reindex } from './commands/project.js';
 import { newItem, type } from './commands/types.js';
@@ -47,6 +48,14 @@ Read:
   autonomy <project>     Evidence for an autonomy evaluation (it does not decide)
   serve                  Read-only local API (--port, default 8754; --host, default 127.0.0.1)
 
+Several machines (metadata only; see docs/SECURITY.md):
+  central token new      Create a token: --name <machine> --team <team> [--scope ingest,read]
+  central token list|revoke <id|name>
+  central serve          Central server; off loopback it needs --tls-cert and --tls-key
+                         (or --behind-tls-proxy); teams are isolated, one store each
+  ship                   Send local events' metadata to a central server:
+                         --url <https://…> --token-file <file> [--ca-file <pem>] [--watch]
+
 Common options:
   --home <dir>           Local installation (default: $LW_HOME or ~/.ledgerwake)
   --allow-remote         Allow --host beyond loopback (the servers have no authentication)
@@ -71,6 +80,8 @@ const COMMANDS: Record<string, Command> = {
   new: newItem,
   alerts: alertsCommand,
   autonomy,
+  central,
+  ship,
 };
 
 /** Runs the CLI. Exit codes: 0 success, 1 check found errors (or no events), 2 usage or configuration error. */
@@ -92,6 +103,15 @@ export async function run(argv: string[], io: Io): Promise<number> {
         port: { type: 'string' },
         host: { type: 'string' },
         'allow-remote': { type: 'boolean', default: false },
+        name: { type: 'string' },
+        team: { type: 'string' },
+        scope: { type: 'string' },
+        url: { type: 'string' },
+        'token-file': { type: 'string' },
+        'ca-file': { type: 'string' },
+        'tls-cert': { type: 'string' },
+        'tls-key': { type: 'string' },
+        'behind-tls-proxy': { type: 'boolean', default: false },
         states: { type: 'string' },
         prefix: { type: 'string' },
         title: { type: 'string' },

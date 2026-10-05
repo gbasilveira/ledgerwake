@@ -349,10 +349,39 @@ paths:
   forwarded); its other tables are read models that can be rebuilt. Full content (prompts, responses,
   tool input and output) is kept in the local store's content table, addressed
   by `sha256:<hex>`, and referenced from events by `content.ref`.
-- A **central server** receives events (an HTTP/JSON endpoint and OTLP) and reads
-  remote git repositories itself, so the state of the files never depends on
-  agents reporting. Storage is PostgreSQL.
-- Teams, machines, accounts, models and agents are first-class attributes.
+- A **central server** receives events over HTTPS (`POST /v1/events`, a batch of
+  `{event, natural_key}`, at most 1000 events and 8 MiB) and serves each team its
+  own data through the same read API. It is implemented on the local store
+  (SQLite), one file per team.
+  - *Authentication.* `Authorization: Bearer lwt_…`. A token belongs to one
+    machine (a label) and one team, with the scopes `ingest` and/or `read`. The
+    server keeps only the SHA-256 of a token (file mode 0600), compares in
+    constant time, answers 401 for a bad token and 429 after repeated failures
+    from one address, and honours revocation without a restart.
+  - *Isolation.* The token's team selects the store file; no request can name
+    another team. Team and machine names are restricted so they cannot escape
+    a path.
+  - *Privacy.* The server keeps metadata only (§9.1): every `content.ref` and
+    `data.content_refs` is removed whatever the client sends, and the machine and
+    team are stamped from the token, not taken from the event. Events are
+    validated as `event/0` envelopes before anything is stored, a batch is
+    accepted or rejected whole, and events dated more than a day ahead are
+    refused.
+  - *Transport.* Off loopback the server requires TLS (a certificate and key) or
+    an explicit statement that a TLS-terminating proxy fronts it; the shipper
+    refuses to send a token over `http` except to loopback.
+  - *Shipping.* `lw ship` sends events in insertion order and advances its
+    position only after the server acknowledges a batch (at-least-once,
+    idempotent by event id), so a crash or a lost reply loses and doubles
+    nothing. The token comes from a file with no group or world access, or the
+    environment, never the command line.
+  Not built: PostgreSQL storage, OTLP ingestion at the central server, remote git
+  reading by the server, a policy for uploading full content, and a dashboard for
+  the central server. The central server's sessions are therefore not attributed
+  to projects or items (that needs the project registry and git, which stay on
+  the machine).
+- Teams, machines, accounts, models and agents are first-class attributes; at the
+  central server, machine and team come from the token.
 
 ## 9. Privacy and security
 
@@ -416,7 +445,9 @@ from the same inputs.
 3. ~~How a session is linked to an item.~~ Answered by the spike (§6 of the
    report); rule in §5.1.
 4. Granularity and retention of `full` content at the edge.
-5. Authentication model for the central server.
+5. ~~Authentication model for the central server.~~ Answered for v0 (§8): per
+   machine bearer tokens over TLS, hashed at rest, team-scoped. Open: single
+   sign-on for people, and a way to rotate tokens without a restart of shippers.
 6. Checking transitions against status history (git log of the `status` field)
    for native documents; and whether the legacy adapter should check queue
    history the same way.
