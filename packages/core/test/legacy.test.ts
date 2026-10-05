@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildIndex,
   leadingState,
+  parseDecisionIndex,
+  parseDecisions,
   loadProjectConfig,
   parseLog,
   parseQueue,
@@ -141,5 +143,51 @@ describe('legacy index', () => {
     ]);
     expect(new Set(index.events.map((e) => e.id)).size).toBe(4);
     expect(buildIndex(dir, loadProjectConfig(dir))).toEqual(index);
+  });
+});
+
+describe('decision records', () => {
+  const text = [
+    '# Decisions',
+    '## 3. Records',
+    '### DR-01 — First choice',
+    '',
+    '**Data:** 2026-10-02',
+    'Body.',
+    '## DR-02 — Second choice (2026-10-03)',
+    'More.',
+    '## DR-02 — Repeated',
+  ].join('\n');
+
+  it('reads ## and ### headings with dates from the title or a Data line', () => {
+    const { records, problems } = parseDecisions(text);
+    expect(records.map((r) => [r.key, r.title, r.date, r.line])).toEqual([
+      ['DR-01', 'First choice', '2026-10-02', 3],
+      ['DR-02', 'Second choice', '2026-10-03', 7],
+    ]);
+    expect(problems.map((p) => [p.code, p.line])).toEqual([['decision-duplicate', 9]]);
+  });
+
+  it('indexes decisions and checks them against the decision index', () => {
+    const dir = project({
+      ...legacyFiles,
+      'docs/DECISIONS.md': text,
+      'docs/DR-INDEX.md': '- DR-01: First choice\n- DR-03: Missing\n',
+    });
+    const index = buildIndex(dir, loadProjectConfig(dir));
+    expect(index.items.filter((i) => i.type === 'dr').map((i) => [i.qid, i.date])).toEqual([
+      ['demo/DR-01', '2026-10-02'],
+      ['demo/DR-02', '2026-10-03'],
+    ]);
+    expect(
+      index.diagnostics
+        .filter((d) => d.code.startsWith('decision'))
+        .map((d) => [d.code, d.message]),
+    ).toEqual([
+      ['decision-duplicate', 'DR-02 appears more than once; the first is used'],
+      ['decision-index', 'DR-02 is in docs/DECISIONS.md but not in the index'],
+      ['decision-index', 'DR-03 is in the index but not in docs/DECISIONS.md'],
+    ]);
+    expect([...parseDecisionIndex('- DR-01: a\n- DR-01: b\n')]).toEqual([['DR-01', 1]]);
   });
 });

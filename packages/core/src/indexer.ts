@@ -5,7 +5,14 @@ import { findEmbeddedBlocks } from './embedded.js';
 import { EVENT_VERSION, type LwEvent } from './envelope.js';
 import { DocumentSchema, splitFrontmatter } from './frontmatter.js';
 import { sha256, sha256Hex } from './hash.js';
-import { type LegacyProblem, parseLog, parseQueue, parseWorkOrder } from './legacy.js';
+import {
+  type LegacyProblem,
+  parseDecisionIndex,
+  parseDecisions,
+  parseLog,
+  parseQueue,
+  parseWorkOrder,
+} from './legacy.js';
 import type { ProjectConfig } from './project.js';
 import { ulidFrom } from './ulid.js';
 
@@ -34,6 +41,8 @@ export interface Item {
   /** Header state of a legacy work order; informative only, not canonical. */
   header_status: string | null;
   phase: string | null;
+  /** Date of a decision record, `YYYY-MM-DD`. */
+  date: string | null;
   depends_on: string[];
   branch: string | null;
   tasks: { total: number; done: number } | null;
@@ -143,6 +152,7 @@ function buildLegacy(dir: string, config: ProjectConfig): Parts {
       status_source: 'queue',
       header_status: null,
       phase: row.phase,
+      date: null,
       depends_on: row.dependsOn.map(qid),
       branch: null,
       tasks: null,
@@ -198,6 +208,7 @@ function buildLegacy(dir: string, config: ProjectConfig): Parts {
       status_source: workOrder.headerState ? 'header' : null,
       header_status: null,
       phase: workOrder.header.Fase?.value ?? null,
+      date: null,
       depends_on: [],
       branch: null,
       tasks: null,
@@ -268,6 +279,54 @@ function buildLegacy(dir: string, config: ProjectConfig): Parts {
         },
         content: { level: 'metadata', ref: null },
       });
+    }
+  }
+
+  const decisionsText = readText(join(dir, paths.decisions));
+  if (decisionsText !== null) {
+    const { records, problems } = parseDecisions(decisionsText);
+    attach(paths.decisions, problems, diagnostics);
+    for (const record of records) {
+      items.set(record.key, {
+        qid: qid(record.key),
+        id: derivedId(qid(record.key)),
+        id_source: 'derived',
+        type: 'dr',
+        key: record.key,
+        title: record.title,
+        status: null,
+        status_source: null,
+        header_status: null,
+        phase: null,
+        date: record.date,
+        depends_on: [],
+        branch: null,
+        tasks: null,
+        occurrences: [{ path: paths.decisions, line: record.line, hash: sha256Hex(record.text) }],
+      });
+    }
+    const indexText = readText(join(dir, paths.decision_index));
+    if (indexText !== null) {
+      const listed = parseDecisionIndex(indexText);
+      for (const record of records) {
+        if (!listed.has(record.key))
+          diagnostics.push({
+            level: 'warning',
+            code: 'decision-index',
+            path: paths.decision_index,
+            message: `${record.key} is in ${paths.decisions} but not in the index`,
+          });
+      }
+      for (const [key, line] of listed) {
+        if (!records.some((r) => r.key === key))
+          diagnostics.push({
+            level: 'warning',
+            code: 'decision-index',
+            path: paths.decision_index,
+            line,
+            message: `${key} is in the index but not in ${paths.decisions}`,
+          });
+      }
     }
   }
 
@@ -350,6 +409,7 @@ function buildNative(dir: string, config: ProjectConfig): Parts {
       header_status: null,
       phase:
         typeof doc.phase === 'string' || typeof doc.phase === 'number' ? String(doc.phase) : null,
+      date: typeof doc.date === 'string' ? doc.date : null,
       depends_on: doc.depends_on.map((d) => (d.includes('/') ? d : `${config.slug}/${d}`)),
       branch: doc.branch ?? null,
       tasks: null,

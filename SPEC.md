@@ -88,6 +88,7 @@ adapter reads the existing conventions in memory, without migration:
 | header status (informative only) | header table row `| Estado |`; it is **not** maintained and MUST NOT be trusted |
 | task progress | `[ ]` / `[x]` markers |
 | orchestration events | log lines `- <UTC time> · **<TYPE>** · <text>` |
+| decision records (type `dr`) | headings `## DR-NN — title` or `### DR-NN — title` in the decisions document; date from a trailing `(YYYY-MM-DD)` or a `**Data:**` line; checked against the index `- DR-NN: title` |
 
 The header rows `Fase` and `Depende de` are used only for a work order without
 a queue row: `Depende de` is prose and also names work orders that are not
@@ -285,6 +286,8 @@ paths:
   work_orders: docs/work-orders
   orchestration: docs/ORCHESTRATION.md
   log: docs/orchestration-log/LOG.md
+  decisions: docs/DECISIONS.md
+  decision_index: docs/DR-INDEX.md
 ```
 
 - A local installation observes the projects listed in

@@ -43,7 +43,7 @@ describe.skipIf(!present)('VERA fixture (M1 acceptance)', () => {
   });
 
   it('indexes every queue row, including work orders without a file', () => {
-    expect(index.items).toHaveLength(queueRows.length);
+    expect(index.items.filter((i) => i.type === 'wo')).toHaveLength(queueRows.length);
     const wo062 = index.items.find((i) => i.key === 'WO-062')!;
     const row = queueRows.find((l) => /^\| +062 +\|/.test(l))!;
     expect(wo062.status).toBe(row.split('|')[4]!.trim());
@@ -55,6 +55,21 @@ describe.skipIf(!present)('VERA fixture (M1 acceptance)', () => {
         .filter((t) => /^\d{3}[a-z]?$/.test(t))
         .map((t) => `vera/WO-${t}`),
     );
+  });
+
+  it('indexes every decision record listed in DR-INDEX.md, with its date', () => {
+    const listed = readFileSync(join(vera, 'docs/DR-INDEX.md'), 'utf8')
+      .split('\n')
+      .filter((l) => /^- DR-\d+:/.test(l))
+      .map((l) => l.slice(2, l.indexOf(':')));
+    const records = index.items.filter((i) => i.type === 'dr');
+    expect(records.map((r) => r.key).sort()).toEqual([...listed].sort());
+    expect(
+      records.every(
+        (r) => r.qid.startsWith('vera/DR-') && /^\d{4}-\d{2}-\d{2}$/.test(r.date ?? ''),
+      ),
+    ).toBe(true);
+    expect(index.diagnostics.filter((d) => d.code.startsWith('decision'))).toEqual([]);
   });
 
   it('replays every LOG.md entry as an event', () => {

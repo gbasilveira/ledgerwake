@@ -143,3 +143,11 @@ has no branch until `lw reconcile` reads its transcript.
 model is rebuilt per request, so it always reflects the files and the store;
 `POST` and other methods answer 405. Binding elsewhere prints a warning, since
 there is no authentication yet.
+
+## D-012 — Decision records in the legacy adapter (2026-10-05)
+
+CONTEXT.md described VERA's decision records as `## DR-NN — title`; the
+document actually uses both `##` (31 records) and `###` (18). Both are read.
+Records become items of type `dr` with a date and their heading as occurrence;
+the decision index (`DR-INDEX.md`) is checked both ways and differences are
+warnings. On the VERA fixture: 49 records, all dated, index consistent.

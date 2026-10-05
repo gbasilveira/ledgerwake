@@ -254,3 +254,76 @@ export function parseLog(text: string): { entries: LogEntry[]; problems: LegacyP
   });
   return { entries, problems };
 }
+
+// ------------------------------------------------------------------------ decisions
+
+export interface DecisionRecord {
+  number: string;
+  key: string;
+  title: string;
+  /** `YYYY-MM-DD` from a trailing `(date)` in the heading or a `**Data:**` line, if any. */
+  date: string | null;
+  line: number;
+  /** The record's text, from its heading to the next decision heading. */
+  text: string;
+}
+
+const DR_HEADING = /^#{2,3} DR-([0-9]+) — (.+?)\s*$/;
+const DR_DATE_IN_TITLE = /\s*\((\d{4}-\d{2}-\d{2})\)$/;
+const DR_DATE_LINE = /^\*\*(?:Data|Date):\*\*\s*(\d{4}-\d{2}-\d{2})/;
+const DR_INDEX_LINE = /^- DR-([0-9]+):/;
+
+/** Decision records: headings `## DR-NN — title` or `### DR-NN — title`. */
+export function parseDecisions(text: string): {
+  records: DecisionRecord[];
+  problems: LegacyProblem[];
+} {
+  const lines = text.split(/\r?\n/);
+  const records: DecisionRecord[] = [];
+  const problems: LegacyProblem[] = [];
+  const starts: number[] = [];
+  lines.forEach((content, i) => {
+    if (DR_HEADING.test(content)) starts.push(i);
+  });
+  const seen = new Set<string>();
+  starts.forEach((start, n) => {
+    const match = DR_HEADING.exec(lines[start]!)!;
+    const number = match[1]!;
+    const key = `DR-${number}`;
+    const body = lines.slice(start, starts[n + 1] ?? lines.length);
+    let title = match[2]!;
+    let date = DR_DATE_IN_TITLE.exec(title)?.[1] ?? null;
+    title = title.replace(DR_DATE_IN_TITLE, '');
+    if (!date) {
+      for (const l of body) {
+        const d = DR_DATE_LINE.exec(l);
+        if (d) {
+          date = d[1]!;
+          break;
+        }
+      }
+    }
+    if (seen.has(key)) {
+      problems.push({
+        level: 'warning',
+        code: 'decision-duplicate',
+        line: start + 1,
+        message: `${key} appears more than once; the first is used`,
+      });
+      return;
+    }
+    seen.add(key);
+    records.push({ number, key, title, date, line: start + 1, text: body.join('\n') });
+  });
+  return { records, problems };
+}
+
+/** Keys listed in a decision index (`- DR-NN: title`), with their lines. */
+export function parseDecisionIndex(text: string): Map<string, number> {
+  const keys = new Map<string, number>();
+  text.split(/\r?\n/).forEach((content, i) => {
+    const m = DR_INDEX_LINE.exec(content);
+    if (m && !keys.has(`DR-${m[1]}`)) keys.set(`DR-${m[1]}`, i + 1);
+  });
+  return keys;
+}
