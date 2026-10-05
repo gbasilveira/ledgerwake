@@ -444,8 +444,12 @@ from the same inputs.
 
 ## 12. Open questions
 
-1. Exact OpenTelemetry mapping; check alignment with the GenAI semantic
-   conventions rather than inventing attributes.
+1. ~~Exact OpenTelemetry mapping; check alignment with the GenAI semantic
+   conventions.~~ Checked in part: `docs/OTEL-MAPPING.md`. The conventions are
+   all in Development status; model, token, conversation and tool attributes
+   map onto ours, cost and agent attributes have no counterpart found. Open:
+   the agent, event, metric and MCP documents were not read, and no export is
+   built.
 2. ~~Hook behaviour under rate limits and when the server is down.~~ Answered
    by the M0 spike (`docs/SPIKE-REPORT.md` §2; rule in §6.1): a server that is
    down or returns errors never fails the agent, but hooks are synchronous.

@@ -360,3 +360,10 @@ merge that differs from both parents (otherwise git's own history
 simplification hides the side branch) and was shown to fail under the old walk.
 
 Opt-in (`--history`) because it runs git per file version: 0.6 s on VERA.
+
+## D-025 — GenAI semantic conventions: keep our envelope (2026-10-05)
+
+Read the conventions (now in a separate repository, all attributes in
+Development status). Claude Code exports none of them. Our envelope keeps its
+names; `docs/OTEL-MAPPING.md` gives the translation for a later export. Not read
+and so not claimed: the agent, event, metric and MCP documents.
