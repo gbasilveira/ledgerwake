@@ -78,3 +78,23 @@ requests have tokens (from transcripts) but no cost.
 pnpm lw alerts                   # exit 1 if any alert; thresholds in ~/.ledgerwake/alerts.yaml
 pnpm lw autonomy <project>       # evidence for an autonomy evaluation; it does not decide
 ```
+
+## What it is for
+
+Ledgerwake monitors agentic multitasking: which agents did what, in which
+project, for which unit of work, at what cost. It only observes; it never edits
+documents, starts or stops agents, or sends them prompts.
+
+The unit of work is whatever your process says it is. The reference corpus uses
+work orders and decision records; the same mechanism (a process type is a
+Markdown document listing states, transitions and required sections) can track
+other recurring processes, for example:
+
+- a **marketing pipeline**: campaigns moving through brief, creative, live and
+  reported;
+- a **sales funnel**: opportunities moving through qualified, proposal, won or
+  lost;
+- a **CI/CD automation**: releases moving through built, staged and deployed.
+
+In each case the agents' sessions, commits and costs are linked to the item they
+worked on. Linking to records in external tools is not built.

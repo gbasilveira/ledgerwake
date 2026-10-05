@@ -365,9 +365,10 @@ paths:
    on port 8754; it answers `GET` only). Remote access needs
    authentication and per-team access control.
 4. Stores and spools MUST be kept out of version control.
-5. Any **action** (anything beyond reading) is authenticated and itself
-   recorded as an event. Actions are introduced in stages: file edits through git
-   (reversible) first, control of live processes last.
+5. Ledgerwake does not act (D-018): it reads files, git, transcripts and
+   telemetry, and never edits a document, starts or stops an agent, or injects a
+   prompt. Its only writes are to its own store and spool. If actions are ever
+   added, each MUST be authenticated and recorded as an event.
 
 ## 10. Versioning and compatibility
 

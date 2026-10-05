@@ -53,10 +53,9 @@ budgets). Autonomy evaluation criteria computed from the data.
 OTLP and HTTP ingestion, PostgreSQL, authentication, per-team access control,
 privacy levels, remote git reading.
 
-## M8 — Actions
-Reversible file edits through git first; then live-process control. Every action
-authenticated and recorded.
-
-## Out of scope for now
-Own agent runtime, task execution, LLM calls on the ingestion path, publishing
-or reserving the name anywhere.
+## Out of scope
+Ledgerwake only monitors (D-018). Not planned: acting on agents or documents
+(the former M8: file edits, live-process control), injecting prompts into
+sessions, connectors to external systems (CRM, CI/CD, marketing tools), an own
+agent runtime, task execution, LLM calls on the ingestion path, publishing or
+reserving the name anywhere.

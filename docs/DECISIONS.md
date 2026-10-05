@@ -249,3 +249,15 @@ acceptance, RESULT present and with figures, tasks ticked) and lists the
 questions that need human judgement (VERA's AUTONOMY-EVAL H1–H3, C6). It does
 not decide. On VERA: 42 of 45 work orders accepted, 9 with launches in the log,
 first-pass 56 %, RESULT present 98 %, tasks fully ticked 39 %.
+
+## D-018 — Scope: monitoring only (2026-10-05)
+
+Decided by the owner. Ledgerwake observes agentic multitasking; it does not act.
+Removed from the roadmap: the former M8 (actions), prompt injection into
+sessions, and connectors to external systems. SPEC §9.5 now states that
+Ledgerwake does not act. The process-type mechanism stays generic, so other
+recurring processes can be tracked as documents; CRM, CI/CD and marketing
+pipelines appear in the README only as examples of that use. Consequence for
+safety: with no action path, the local API stays read-only and an
+unauthenticated loopback server remains acceptable provided it is protected
+against browser-based access (D-019).
