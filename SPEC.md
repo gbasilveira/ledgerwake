@@ -138,17 +138,38 @@ three sources, joined on `session`:
 1. **Hooks** (command or HTTP): provide `session_id`, `cwd`, `agent_id`,
    `agent_type`, `prompt_id`, tool use, sub-agent start and stop, working
    directory and worktree changes.
-2. **Transcripts** (`~/.claude/projects/**/*.jsonl`): the complete record,
-   including thinking; also the source for **backfill**. The format is not a
-   public contract, so it is isolated behind a versioned parser.
+2. **Transcripts** (`~/.claude/projects/**/*.jsonl`): the complete record of
+   prompts, responses, tool calls and sub-agents (in
+   `<session>/subagents/agent-<id>.jsonl`), and the source for **backfill**.
+   Thinking blocks are present but their text is often empty (signature only),
+   so thinking content is best-effort. The format is not a public contract and
+   carries no schema version, only the producer `version`; it is isolated
+   behind a parser keyed on that version.
 3. **OpenTelemetry**: cost and token usage by model, sub-agent, skill, plugin and
    MCP server. It does not carry the working directory, which is why hooks are
-   required for project attribution.
+   required for project attribution. It joins to hooks on `session.id`,
+   `prompt.id` and `tool_use_id`. Its records carry personal identifiers
+   (`user.email`, `user.account_uuid`), which the edge MUST drop or hash.
+
+### 5.1 Linking a session to an item
+
+An adapter links a session to a process item from, in order of precedence:
+
+1. the environment variable `LW_ITEM` (a qualified id), recorded by the hook;
+2. the git branch of the session (`gitBranch` in transcripts, or read by the
+   hook from `cwd`), matched against the item's `branch`;
+3. the working directory, matched against known worktrees.
+
+The first that resolves wins; the link records which rule produced it.
 
 ## 6. Capture and delivery
 
 1. **Spool.** Each hook appends the event to a local, append-only file and
-   returns immediately. A hook MUST NOT block or fail the agent.
+   returns immediately. A hook MUST NOT block or fail the agent. Agent hooks
+   are synchronous (a slow hook delays the agent by its full duration), so the
+   capture hook MUST be a local command that performs no network I/O. HTTP hooks
+   and asynchronous hooks MUST NOT be used for capture: the first blocks on the
+   server, the second loses events when the agent process exits.
 2. **Forwarder.** A separate process ships spooled events to the local store
    and, optionally, to a central server, retrying with the event `id` as the
    idempotency key.
@@ -161,9 +182,6 @@ three sources, joined on `session`:
 5. **Verification, not memory.** Obligations on agents (for example "fill in
    `RESULT`") are checked by code at sub-agent stop or pre-commit, never left to
    the agent to remember.
-
-Open question: behaviour of hooks during an upstream rate limit (429). To be
-verified in the first spike.
 
 ## 7. Process types
 
@@ -251,8 +269,12 @@ from the same inputs.
 
 1. Exact OpenTelemetry mapping; check alignment with the GenAI semantic
    conventions rather than inventing attributes.
-2. Hook behaviour under rate limits and when the server is down.
-3. How a session is linked to an item when no branch or prompt names it (branch,
-   worktree and environment variable are the candidates).
+2. ~~Hook behaviour under rate limits and when the server is down.~~ Answered
+   by the M0 spike (`docs/SPIKE-REPORT.md` §2; rule in §6.1): a server that is
+   down or returns errors never fails the agent, but hooks are synchronous.
+   Still open: hook behaviour during an *upstream* API rate limit, which could
+   not be induced.
+3. ~~How a session is linked to an item.~~ Answered by the spike (§6 of the
+   report); rule in §5.1.
 4. Granularity and retention of `full` content at the edge.
 5. Authentication model for the central server.
