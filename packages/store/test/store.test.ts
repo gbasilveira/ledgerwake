@@ -52,3 +52,30 @@ describe('store', () => {
     ]);
   });
 });
+
+describe('store migration', () => {
+  it('upgrades store/0 by dropping only old-style commit events and commit links', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const path = join(tempDir(), 'old.db');
+    const first = Store.open(path);
+    first.insert(toolCalls(2).map(mapHookEvent));
+    first.close();
+    const raw = new DatabaseSync(path);
+    raw.exec("UPDATE meta SET value = 'store/0' WHERE key = 'version'");
+    raw.exec(
+      `INSERT INTO events (id, natural_key, ts, kind, json) VALUES ('01J0000000000000000000000A', 'git.commit:abc', '2026-01-01T00:00:00.000Z', 'git.commit', '{}'),
+       ('01J0000000000000000000000B', 'git.commit:demo:abc', '2026-01-01T00:00:00.000Z', 'git.commit', '{}')`,
+    );
+    raw.exec("INSERT INTO commit_links VALUES ('demo', 'abc', 'demo/WO-1', 'branch')");
+    raw.close();
+    const upgraded = Store.open(path);
+    expect(upgraded.count()).toBe(3);
+    expect(upgraded.commitLinks('demo').size).toBe(0);
+    upgraded.close();
+    const again = new DatabaseSync(path);
+    expect(again.prepare("SELECT value FROM meta WHERE key = 'version'").get()).toEqual({
+      value: 'store/1',
+    });
+    again.close();
+  });
+});

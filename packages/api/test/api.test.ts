@@ -106,7 +106,11 @@ describe('read model and API', () => {
       subject: string;
       links: unknown[];
     }[];
-    expect(commits.map((c) => [c.subject, c.links])).toEqual([
+    expect(
+      commits
+        .map((c) => [c.subject, c.links])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+    ).toEqual([
       ['docs: queue', []],
       ['feat: second step', [{ item: 'demo/WO-002', rule: 'branch' }]],
       ['fix: tidy WO-003 notes', [{ item: 'demo/WO-003', rule: 'subject' }]],

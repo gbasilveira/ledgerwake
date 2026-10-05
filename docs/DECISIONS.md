@@ -166,3 +166,20 @@ OTel cost joined to the transcript usage of the same request. Live check: a
 session with one sub-agent reported `total_cost_usd` 0.0966942; the four OTel
 `api_request` records sum to the same value, split between the main agent and
 the sub-agent by the join.
+
+## D-014 — Commit events are per project (2026-10-05)
+
+Commit ids and natural keys first derived from the sha alone. With VERA and a
+scratch clone both registered, the second project's 482 commits were dropped as
+duplicates and stayed attributed to the first (`git vera: 482 commit(s), 0
+new`). The project slug is now part of both (`git.commit:<project>:<sha>`):
+shared history is recorded once per project that contains it. The store
+schema moves to `store/1`: opening an older store deletes its commit events
+and commit links only (git is canonical for them; `lw reconcile` reads them
+again).
+
+Correction to an assumption made while writing this: the store is not wholly
+disposable. The forwarder removes spool files after committing them, so hook
+and telemetry events then exist only in the store's `events` table, which is
+the local event log. Only its other tables (commit links) are read models. SPEC
+§8 now says so.

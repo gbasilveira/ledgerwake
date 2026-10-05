@@ -88,11 +88,12 @@ export function readCommits(root: string): GitCommit[] {
 /** Maps commits of one project to events. Ids and natural keys derive from the sha. */
 export function commitEvents(project: string, commits: GitCommit[]): CapturedEvent[] {
   return commits.map((c) => ({
-    naturalKey: `git.commit:${c.sha}`,
+    // Per project: two projects may share history (a fork, a clone), and each owns its copy.
+    naturalKey: `git.commit:${project}:${c.sha}`,
     contents: [],
     event: {
       lw: EVENT_VERSION,
-      id: ulidFrom(c.time, sha256(`git.commit\n${c.sha}`)),
+      id: ulidFrom(c.time, sha256(`git.commit\n${project}\n${c.sha}`)),
       ts: new Date(c.time).toISOString(),
       source: { agent: 'git', version: null, host: null, channel: 'git' },
       session: null,

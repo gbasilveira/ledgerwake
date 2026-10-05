@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { CapturedEvent, LwEvent } from '@ledgerwake/core';
 
-export const STORE_VERSION = 'store/0';
+export const STORE_VERSION = 'store/1';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -70,9 +70,28 @@ export interface SessionSummary {
 }
 
 /**
- * The local store (SQLite, SPEC §8). It holds observations, never process state; it can be
- * deleted and rebuilt from the spool, transcripts and git. Events are immutable: insertion
- * ignores an event whose id or natural key is already present.
+ * Upgrades an older store in place. Only derived data is ever removed: commit events can be read
+ * again from git by `lw reconcile`; hook and telemetry events are never touched.
+ */
+function migrate(db: DatabaseSync): void {
+  const row = db.prepare("SELECT value FROM meta WHERE key = 'version'").get() as
+    { value: string } | undefined;
+  if (row?.value === 'store/0') {
+    // D-014: commit keys gained the project (git.commit:<project>:<sha>).
+    db.exec(
+      "DELETE FROM events WHERE kind = 'git.commit' AND natural_key NOT LIKE 'git.commit:%:%'; DELETE FROM commit_links;",
+    );
+  }
+  db.prepare(
+    'INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+  ).run('version', STORE_VERSION);
+}
+
+/**
+ * The local store (SQLite, SPEC §8). It holds observations, never process state. Its `events`
+ * table is the local event log: once the forwarder has removed a spool file, the event exists only
+ * here, so the table must not be deleted. Other tables are read models and are rebuilt.
+ * Events are immutable: insertion ignores an event whose id or natural key is already present.
  */
 export class Store {
   private constructor(private readonly db: DatabaseSync) {}
@@ -85,10 +104,7 @@ export class Store {
     if (path !== ':memory:') chmodSync(path, 0o600);
     db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA busy_timeout = 5000;');
     db.exec(SCHEMA);
-    db.prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)').run(
-      'version',
-      STORE_VERSION,
-    );
+    migrate(db);
     return new Store(db);
   }
 

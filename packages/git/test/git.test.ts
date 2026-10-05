@@ -68,7 +68,8 @@ describe('git commits', () => {
     const repo = makeRepo();
     const events = commitEvents('demo', readCommits(repo));
     for (const e of events) expect(parseEvent(e.event)).toEqual(e.event);
-    expect(events[0]!.naturalKey).toBe(`git.commit:${events[0]!.event.refs.commit as string}`);
+    expect(events[0]!.naturalKey).toBe(`git.commit:demo:${events[0]!.event.refs.commit as string}`);
+    expect(commitEvents('other', readCommits(repo))[0]!.event.id).not.toBe(events[0]!.event.id);
     expect(commitEvents('demo', readCommits(repo))).toEqual(events);
     expect(JSON.stringify(events)).not.toMatch(/Person|example\.org/);
   });

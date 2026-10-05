@@ -296,7 +296,9 @@ paths:
   file outside the repository, for repositories that must not be edited.
 - A **local installation** (`$LW_HOME`, by default `~/.ledgerwake`) keeps a
   SQLite store (`data/store.db`), the spool (`spool/<agent>/`) and the installed
-  hook (`bin/`); it is complete on its own. Full content (prompts, responses,
+  hook (`bin/`); it is complete on its own. The store's `events` table is the
+  local, append-only event log (spooled events live only there once
+  forwarded); its other tables are read models that can be rebuilt. Full content (prompts, responses,
   tool input and output) is kept in the local store's content table, addressed
   by `sha256:<hex>`, and referenced from events by `content.ref`.
 - A **central server** receives events (an HTTP/JSON endpoint and OTLP) and reads
