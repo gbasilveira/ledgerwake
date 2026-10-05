@@ -61,7 +61,8 @@ Several machines (metadata only; see docs/SECURITY.md):
   central token new      Create a token: --name <machine> --team <team> [--scope ingest,read]
   central token list|revoke <id|name>
   central serve          Central server; off loopback it needs --tls-cert and --tls-key
-                         (or --behind-tls-proxy); teams are isolated, one store each
+                         (or --behind-tls-proxy); teams are isolated, one store each.
+                         --storage postgres keeps them in PostgreSQL (env LW_DATABASE_URL)
   ship                   Send local events' metadata to a central server:
                          --url <https://…> --token-file <file> [--ca-file <pem>] [--watch]
 
@@ -114,6 +115,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
         port: { type: 'string' },
         host: { type: 'string' },
         'allow-remote': { type: 'boolean', default: false },
+        storage: { type: 'string' },
         history: { type: 'boolean', default: false },
         'content-older-than': { type: 'string' },
         yes: { type: 'boolean', default: false },

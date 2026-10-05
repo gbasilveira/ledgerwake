@@ -380,3 +380,34 @@ index and return that directory's documents. `ReadModel` now takes
 project on the server's disk, ingests a session whose `cwd` points into it, and
 checks that no project is attributed and no document is exposed; it fails
 without the option.
+
+## D-027 — PostgreSQL behind a storage interface, read model on a cache (2026-10-05)
+
+Approved by the owner (container use allowed). Docker's socket is not accessible
+to this account; rootless podman does the same job without a daemon or root, so
+the tests use it (`scripts/with-postgres.sh` starts a throw-away PostgreSQL 17 on
+127.0.0.1 with a random password and removes it afterwards; docker is used if
+podman is absent).
+
+- **Design.** The central server talks to a `TeamBackend` (insert a batch, give a
+  store to read from). SQLite behaviour moved behind it unchanged. PostgreSQL
+  keeps one schema per team, which preserves "isolation by construction". The
+  read model is synchronous code written over the local store; rewriting it for an
+  async driver would touch every query, so reads run on an in-memory cache
+  refreshed from the log. Cost: the cache grows with a team's data. Alternative
+  not taken: a read model in SQL for PostgreSQL, a large duplicate of tested code.
+- **Ordering.** Row numbers are assigned by `BIGSERIAL`, which is not commit
+  order under concurrency: a reader could see row 26 before row 1 commits and
+  never fetch row 1. Writers therefore take a per-team advisory lock. The first
+  concurrency test passed without the lock (the interleaving never occurred);
+  mutation testing showed it proved nothing, so a deterministic test now holds the
+  lock from outside and waits until PostgreSQL reports the insert blocked. With the
+  lock removed, both that test and the broad one fail (the broad one then really
+  loses rows).
+- **Types.** Events are stored as text, not `jsonb`: `jsonb` rejects some inputs
+  and reorders keys; the log keeps the exact JSON that was received.
+- **Mutation checks.** Removing redaction, removing schema-name validation and
+  removing the lock each make tests fail.
+- **Not done.** Direct SQL read model; OTLP, remote git and full-content upload at
+  the central server; schema migrations (the schema is created if missing and
+  has no version table yet).

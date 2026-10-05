@@ -48,9 +48,18 @@ action path to protect, and no credential of the observed systems is held.
 | Guessing tokens | 256-bit random tokens; failures answered 401 then 429 per address | `central.test.ts` |
 | Poisoned timestamps | Events more than a day ahead are refused | `central.test.ts` |
 
+| SQL injection through events or team names | Every value is a bound parameter; the only text built into SQL is the schema name, made from a team slug that must match `^[a-z0-9][a-z0-9-]{0,40}$` and is checked again in the backend; hostile values and names are tested against a real PostgreSQL | `postgres.test.ts` |
+| A secret reaches the database | Redaction runs before the insert, and the cache store redacts again; verified by reading the stored rows | `postgres.test.ts` |
+| The database password leaks | It comes from `LW_DATABASE_URL`, never an argument (no process-list exposure); it is not printed; a database on another host needs `sslmode=require` or stronger | `central-postgres.test.ts` |
+| Lost rows under concurrent writers | One writer per team at a time (advisory lock); removing the lock makes two tests fail | `postgres.test.ts` |
+| A dropped database connection ends the server | The pool's error event is handled, and the pool reconnects; tested by terminating the connections | `postgres.test.ts` |
+
 Residual risks specific to the central server: no single sign-on; tokens do not
 expire (revoke them); the failure limit is per address and in memory, so a restart
-resets it; one team's store grows without limit; the server is not hardened
+resets it; one team's data grows without limit, and with PostgreSQL so does that team's
+in-memory read cache on every server instance; the database itself is as
+sensitive as the server (use a dedicated role that can only touch its own
+database, and TLS); the server is not hardened
 against a flood of valid, authenticated requests; and metadata still reveals
 what people work on (project names, paths, tool names, commit subjects). Keep
 it on a private network.

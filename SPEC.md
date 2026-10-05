@@ -360,8 +360,10 @@ paths:
   by `sha256:<hex>`, and referenced from events by `content.ref`.
 - A **central server** receives events over HTTPS (`POST /v1/events`, a batch of
   `{event, natural_key}`, at most 1000 events and 8 MiB) and serves each team its
-  own data through the same read API. It is implemented on the local store
-  (SQLite), one file per team.
+  own data through the same read API. Storage is pluggable behind one async
+  interface: SQLite (one file per team, the default) or PostgreSQL
+  (`lw central serve --storage postgres`, connection string in the environment
+  variable `LW_DATABASE_URL`, one schema per team).
   - *Authentication.* `Authorization: Bearer lwt_…`. A token belongs to one
     machine (a label) and one team, with the scopes `ingest` and/or `read`. The
     server keeps only the SHA-256 of a token (file mode 0600), compares in
@@ -384,9 +386,19 @@ paths:
     idempotent by event id), so a crash or a lost reply loses and doubles
     nothing. The token comes from a file with no group or world access, or the
     environment, never the command line.
-  Not built: PostgreSQL storage, OTLP ingestion at the central server, remote git
-  reading by the server, a policy for uploading full content, and a dashboard for
-  the central server. The central server's sessions are therefore not attributed
+  - *PostgreSQL.* The database is the durable log; each team has its own schema
+    (named from a validated slug), so every statement can only name that team's
+    tables. Writers are serialised per team with an advisory lock, so row numbers
+    follow commit order and a reader that has seen row N has seen all below it.
+    Redaction is applied before the insert as well as in every store. The
+    read model is synchronous code over the local store, so reads run on a
+    per-team in-memory cache refreshed from the log; **the cache grows with the
+    team's data**, which bounds the size one server instance can serve. A database
+    on another host must be reached with TLS (`sslmode=require` or stronger); the
+    server refuses it otherwise.
+  Not built: OTLP ingestion at the central server, remote git
+  reading by the server, a policy for uploading full content, a dashboard for
+  the central server, and a read model that queries PostgreSQL directly. The central server's sessions are therefore not attributed
   to projects or items (that needs the project registry and git, which stay on
   the machine).
 - Teams, machines, accounts, models and agents are first-class attributes; at the

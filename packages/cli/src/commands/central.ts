@@ -3,17 +3,37 @@ import { resolve } from 'node:path';
 import {
   createToken,
   loadTokens,
+  PostgresBackend,
   readTokenFile,
   revokeToken,
   ShipError,
   shipEvents,
   startCentral,
 } from '@ledgerwake/central';
-import { loadRedactor, stableStringify, systemClock } from '@ledgerwake/core';
+import { isLoopbackHost, loadRedactor, stableStringify, systemClock } from '@ledgerwake/core';
 import { Store } from '@ledgerwake/store';
 import { homeDir, type Io, message, paths, UsageError, type Values } from '../io.js';
 
 const SCOPES = ['ingest', 'read'] as const;
+
+/**
+ * A reason not to use this database URL, or null. A database on another host must be reached over
+ * TLS: its password and every event would otherwise cross the network in clear.
+ */
+export function databaseUrlProblem(raw: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return 'LW_DATABASE_URL is not a valid URL (postgres://user:password@host:5432/database)';
+  }
+  if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:')
+    return 'LW_DATABASE_URL must start with postgres://';
+  if (isLoopbackHost(url.hostname) || url.hostname === '') return null;
+  return ['require', 'verify-ca', 'verify-full'].includes(url.searchParams.get('sslmode') ?? '')
+    ? null
+    : `${url.hostname} is not this machine: add ?sslmode=verify-full (or require) to LW_DATABASE_URL so the password and the data are encrypted`;
+}
 
 /** `lw central token new|list|revoke` and `lw central serve`. */
 export async function central(args: string[], values: Values, io: Io): Promise<number> {
@@ -77,10 +97,29 @@ export async function central(args: string[], values: Values, io: Io): Promise<n
     const keyFile = typeof values['tls-key'] === 'string' ? values['tls-key'] : undefined;
     if (Boolean(certFile) !== Boolean(keyFile))
       throw new UsageError('--tls-cert and --tls-key go together');
+    const storage = typeof values.storage === 'string' ? values.storage : 'sqlite';
+    if (storage !== 'sqlite' && storage !== 'postgres')
+      throw new UsageError('--storage is sqlite (default) or postgres');
+    let backend: PostgresBackend | undefined;
+    if (storage === 'postgres') {
+      // The connection string carries a password: it comes from the environment, never an argument.
+      const databaseUrl = io.env.LW_DATABASE_URL ?? '';
+      if (!databaseUrl)
+        throw new UsageError(
+          '--storage postgres needs the LW_DATABASE_URL environment variable (postgres://user:password@host:5432/database)',
+        );
+      const problem = databaseUrlProblem(databaseUrl);
+      if (problem) throw new UsageError(problem);
+      backend = new PostgresBackend({
+        connectionString: databaseUrl,
+        redactor: loadRedactor(home),
+      });
+    }
     let server;
     try {
       server = await startCentral({
         home,
+        ...(backend ? { backend } : {}),
         clock: io.clock ?? systemClock,
         host,
         port,
@@ -100,7 +139,7 @@ export async function central(args: string[], values: Values, io: Io): Promise<n
     const address = server.server.address();
     const actual = typeof address === 'object' && address ? address.port : port;
     io.out(
-      `central server on ${certFile ? 'https' : 'http'}://${host}:${actual} (teams under ${resolve(home, 'central')})`,
+      `central server on ${certFile ? 'https' : 'http'}://${host}:${actual} (${backend ? 'teams in PostgreSQL' : `teams under ${resolve(home, 'central')}`})`,
     );
     if (loadTokens(home).filter((t) => !t.revoked).length === 0)
       io.err('no tokens yet: create one with lw central token new');

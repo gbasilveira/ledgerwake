@@ -108,5 +108,12 @@ lw ship --url https://lw.example.org:8760 --token-file ~/.ledgerwake/token --wat
 ```
 
 Only metadata is shipped (no prompts, responses or tool output), over TLS, with
-one isolated store per team. See `docs/SECURITY.md` for what it protects and
-what it does not. PostgreSQL storage is not built.
+one isolated store per team. Storage is SQLite by default, or PostgreSQL:
+
+```sh
+LW_DATABASE_URL='postgres://lw:…@db.internal:5432/ledgerwake?sslmode=verify-full' \
+  lw central serve --storage postgres --tls-cert server.crt --tls-key server.key --host 0.0.0.0
+scripts/with-postgres.sh pnpm test     # runs the PostgreSQL tests against a throw-away container
+```
+
+See `docs/SECURITY.md` for what it protects and what it does not.
