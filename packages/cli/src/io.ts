@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import type { Clock } from '@ledgerwake/core';
 
 export interface Io {
   out(line: string): void;
@@ -8,6 +9,8 @@ export interface Io {
   env: Record<string, string | undefined>;
   /** Waits between passes of `--watch`; resolves false when the loop must stop. */
   sleep?(ms: number): Promise<boolean>;
+  /** Time source for new identifiers; injected in tests (default: the system clock). */
+  clock?: Clock;
 }
 
 export type Values = Record<string, string | boolean | string[] | undefined>;
