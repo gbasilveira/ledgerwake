@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util';
 import { events, forward, hooks, receive, reconcile, sessions } from './commands/capture.js';
-import { item, project, serve } from './commands/observe.js';
+import { alertsCommand, autonomy, item, project, serve } from './commands/observe.js';
 import { check, reindex } from './commands/project.js';
 import { newItem, type } from './commands/types.js';
 import { type Io, message, UsageError, type Values } from './io.js';
@@ -43,6 +43,8 @@ Capture (Claude Code):
 
 Read:
   item <project>/<key>   An item with its linked sessions and commits
+  alerts                 Evaluate alert rules ($LW_HOME/alerts.yaml); exit 1 if any
+  autonomy <project>     Evidence for an autonomy evaluation (it does not decide)
   serve                  Read-only local API (--port, default 8754; --host, default 127.0.0.1)
 
 Common options:
@@ -66,6 +68,8 @@ const COMMANDS: Record<string, Command> = {
   serve,
   type,
   new: newItem,
+  alerts: alertsCommand,
+  autonomy,
 };
 
 /** Runs the CLI. Exit codes: 0 success, 1 check found errors (or no events), 2 usage or configuration error. */

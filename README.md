@@ -71,3 +71,10 @@ pnpm lw serve                    # dashboard on http://127.0.0.1:8754/
 
 Cost comes from Claude Code's OpenTelemetry (`api_request`); without it,
 requests have tokens (from transcripts) but no cost.
+
+### Alerts and autonomy
+
+```sh
+pnpm lw alerts                   # exit 1 if any alert; thresholds in ~/.ledgerwake/alerts.yaml
+pnpm lw autonomy <project>       # evidence for an autonomy evaluation; it does not decide
+```

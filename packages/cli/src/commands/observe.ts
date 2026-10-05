@@ -1,5 +1,11 @@
-import { openRegistry, registerProject, stableStringify } from '@ledgerwake/core';
-import { ReadModel, serve as startServer } from '@ledgerwake/api';
+import { openRegistry, registerProject, stableStringify, systemClock } from '@ledgerwake/core';
+import {
+  alerts,
+  autonomyReport,
+  loadAlertConfig,
+  ReadModel,
+  serve as startServer,
+} from '@ledgerwake/api';
 import { Store } from '@ledgerwake/store';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -99,7 +105,14 @@ export async function serve(_args: string[], values: Values, io: Io): Promise<nu
   if (!Number.isInteger(port) || port < 0 || port > 65535)
     throw new UsageError('--port must be 0–65535');
   const store = Store.open(paths(home).store);
-  const server = await startServer({ home, store, host, port, ...dashboardOption() });
+  const server = await startServer({
+    home,
+    store,
+    host,
+    port,
+    ...dashboardOption(),
+    ...(io.clock ? { clock: io.clock } : {}),
+  });
   const address = server.address();
   const actual = typeof address === 'object' && address ? address.port : port;
   io.out(`serving the read-only API on http://${host}:${actual}/api/projects`);
@@ -120,4 +133,49 @@ function dashboardOption(): { dashboard?: string } {
   } catch {
     return {};
   }
+}
+
+/** `lw alerts`: alert rules evaluated now; exit 1 when any alert is raised (for cron or CI). */
+export function alertsCommand(_args: string[], values: Values, io: Io): number {
+  const home = homeDir(values, io);
+  return withModel(values, io, (model) => {
+    const list = alerts(model, loadAlertConfig(home), (io.clock ?? systemClock).now());
+    if (values.json) io.out(stableStringify(list));
+    else if (list.length === 0) io.out('no alerts');
+    else
+      for (const a of list)
+        io.out(`${a.severity.padEnd(8)}  ${a.rule.padEnd(15)}  ${a.subject}  ${a.message}`);
+    return list.length > 0 ? 1 : 0;
+  });
+}
+
+/** `lw autonomy <project>`: evidence for an autonomy evaluation (it does not decide). */
+export function autonomy(args: string[], values: Values, io: Io): number {
+  const [slug] = args;
+  if (!slug) throw new UsageError('Usage: lw autonomy <project>');
+  return withModel(values, io, (model) => {
+    const report = autonomyReport(model, slug);
+    if (!report) {
+      io.err(`${slug}: not a registered project`);
+      return 1;
+    }
+    if (values.json) {
+      io.out(stableStringify(report));
+      return 0;
+    }
+    const s = report.summary;
+    const pct = (r: number | null) => (r === null ? '—' : `${Math.round(r * 100)}%`);
+    io.out(
+      `${slug}: ${s.work_orders} work order(s) beyond DRAFT, ${s.accepted} accepted (${s.observed} with launches in the log)`,
+    );
+    io.out(
+      `  accepted at first pass: ${pct(s.first_pass_rate)}   relaunches: ${s.relaunches}   user interventions in the log: ${s.user_interventions}`,
+    );
+    io.out(
+      `  RESULT present: ${pct(s.result_section_rate)}   tasks fully ticked: ${pct(s.tasks_fully_ticked_rate)}`,
+    );
+    io.out('  needs human judgement:');
+    for (const q of report.judgement_needed) io.out(`    - ${q}`);
+    return 0;
+  });
 }
