@@ -10,7 +10,6 @@
  * - Transport: beyond loopback the server needs TLS (or an explicit statement that a TLS-terminating
  *   proxy sits in front), because a token sent in clear is a stolen token.
  */
-import { mkdirSync } from 'node:fs';
 import {
   createServer as createHttp,
   type IncomingMessage,
@@ -18,7 +17,6 @@ import {
   type ServerResponse,
 } from 'node:http';
 import { createServer as createHttps } from 'node:https';
-import { join } from 'node:path';
 import { AlertConfigSchema, handle, ReadModel } from '@ledgerwake/api';
 import {
   type CapturedEvent,
@@ -29,8 +27,8 @@ import {
   stableStringify,
   systemClock,
 } from '@ledgerwake/core';
-import { Store } from '@ledgerwake/store';
-import { loadTokens, TEAM_PATTERN, type TokenRecord, verifyToken } from './tokens.js';
+import { SqliteBackend, type TeamBackend } from './backend.js';
+import { loadTokens, type TokenRecord, verifyToken } from './tokens.js';
 
 export interface CentralOptions {
   home: string;
@@ -38,6 +36,8 @@ export interface CentralOptions {
   host?: string;
   port?: number;
   tls?: { cert: string; key: string };
+  /** Where team data lives (default: one SQLite file per team under `home`). */
+  backend?: TeamBackend;
   /** The owner states that a TLS-terminating proxy fronts this server. */
   behindTlsProxy?: boolean;
   maxBodyBytes?: number;
@@ -58,10 +58,6 @@ const MAX_NATURAL_KEY = 300;
 /** Events dated further ahead than this are refused; a clock gone wrong must not poison ordering. */
 const MAX_FUTURE_MS = 24 * 3_600_000;
 
-export function teamStorePath(home: string, team: string): string {
-  return join(home, 'central', 'teams', team, 'store.db');
-}
-
 export function startCentral(options: CentralOptions): Promise<Central> {
   const clock = options.clock ?? systemClock;
   const host = options.host ?? '127.0.0.1';
@@ -76,18 +72,7 @@ export function startCentral(options: CentralOptions): Promise<Central> {
   const failureLimit = options.failureLimit ?? 10;
   const failureWindow = options.failureWindowMs ?? 60_000;
   const failures = new Map<string, number[]>();
-  const stores = new Map<string, Store>();
-
-  const storeFor = (team: string): Store => {
-    if (!TEAM_PATTERN.test(team)) throw new Error('invalid team');
-    let store = stores.get(team);
-    if (!store) {
-      mkdirSync(join(options.home, 'central', 'teams', team), { recursive: true, mode: 0o700 });
-      store = Store.open(teamStorePath(options.home, team));
-      stores.set(team, store);
-    }
-    return store;
-  };
+  const backend = options.backend ?? new SqliteBackend(options.home);
 
   const send = (res: ServerResponse, status: number, body: unknown, type = JSON_TYPE) => {
     res.writeHead(status, {
@@ -191,15 +176,14 @@ export function startCentral(options: CentralOptions): Promise<Central> {
       }
       const prepared = prepare(payload, token);
       if ('error' in prepared) return send(res, 400, { error: prepared.error });
-      const store = storeFor(token.team);
-      const result = store.transaction(() => store.insert(prepared.captured));
+      const result = await backend.insert(token.team, prepared.captured);
       return send(res, 200, { accepted: result.inserted, duplicates: result.duplicates });
     }
 
     if (url.pathname.startsWith('/api/')) {
       if (!token.scopes.includes('read'))
         return send(res, 403, { error: 'token lacks the read scope' });
-      const store = storeFor(token.team);
+      const store = await backend.reader(token.team);
       const response = handle(
         req.method ?? 'GET',
         `${url.pathname}${url.search}`,
@@ -235,7 +219,7 @@ export function startCentral(options: CentralOptions): Promise<Central> {
         server,
         close: async () => {
           await new Promise((done) => server.close(done));
-          for (const store of stores.values()) store.close();
+          await backend.close();
         },
       }),
     );
