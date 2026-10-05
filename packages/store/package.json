@@ -1,0 +1,21 @@
+{
+  "name": "@ledgerwake/store",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@ledgerwake/core": "workspace:*",
+    "@ledgerwake/claude-code": "workspace:*"
+  }
+}
