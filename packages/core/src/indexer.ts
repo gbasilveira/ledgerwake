@@ -49,6 +49,9 @@ export interface ProjectIndex {
   diagnostics: Diagnostic[];
 }
 
+/** Queue states in which every task marker of a work order is expected to be ticked. */
+export const TASK_COMPLETE_STATES: ReadonlySet<string> = new Set(['ACCEPTED', 'DONE']);
+
 /** Derived, reproducible ULID: time 0, randomness from the hash of `seed`. */
 function derivedId(seed: string): string {
   return ulidFrom(0, sha256(seed));
@@ -206,6 +209,19 @@ function buildLegacy(dir: string, config: ProjectConfig): Parts {
     item.tasks = workOrder.tasks;
     item.occurrences.push(occurrence);
     items.set(workOrder.key, item);
+  }
+
+  for (const item of items.values()) {
+    const tasks = item.tasks;
+    const path = item.occurrences[0]?.path;
+    if (!tasks || !path || tasks.done >= tasks.total) continue;
+    if (item.status_source !== 'queue' || !TASK_COMPLETE_STATES.has(item.status ?? '')) continue;
+    diagnostics.push({
+      level: 'warning',
+      code: 'task-drift',
+      path,
+      message: `${path.slice(path.lastIndexOf('/') + 1)}: queue says '${item.status}' but ${tasks.done} of ${tasks.total} task(s) are ticked`,
+    });
   }
 
   for (const row of queue.rows) {

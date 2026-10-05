@@ -76,6 +76,39 @@ describe('legacy parsers', () => {
   });
 });
 
+describe('task drift', () => {
+  const files = (state: string, tasks: string) => ({
+    ...legacyFiles,
+    'docs/ORCHESTRATION.md': `| 001 | One | 0 | ${state} | x | — |\n`,
+    'docs/work-orders/WO-001-one.md': `| Fase | 0 |\n| Estado | ${state} |\n| Depende de | — |\n| Branch | b |\n${tasks}`,
+    'docs/orchestration-log/LOG.md': '',
+  });
+  const drift = (state: string, tasks: string) => {
+    const dir = project(files(state, tasks));
+    return buildIndex(dir, loadProjectConfig(dir)).diagnostics.filter(
+      (d) => d.code === 'task-drift',
+    );
+  };
+
+  it('warns when an accepted or done work order has unticked tasks', () => {
+    expect(drift('ACCEPTED', '- [x] a\n- [ ] b\n')).toEqual([
+      {
+        level: 'warning',
+        code: 'task-drift',
+        path: 'docs/work-orders/WO-001-one.md',
+        message: "WO-001-one.md: queue says 'ACCEPTED' but 1 of 2 task(s) are ticked",
+      },
+    ]);
+    expect(drift('DONE', '- [ ] a\n')).toHaveLength(1);
+  });
+
+  it('stays quiet when all tasks are ticked, there are none, or work is not finished', () => {
+    expect(drift('ACCEPTED', '- [x] a\n1. [x] b\n')).toEqual([]);
+    expect(drift('ACCEPTED', '')).toEqual([]);
+    expect(drift('IN PROGRESS', '- [ ] a\n')).toEqual([]);
+  });
+});
+
 describe('legacy index', () => {
   const dir = project(legacyFiles);
   const index = buildIndex(dir, loadProjectConfig(dir));

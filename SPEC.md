@@ -108,7 +108,9 @@ yields the same events. `refs.item` is the first work order the line names;
 
 The adapter reports header/queue disagreements as warnings, and queue rows
 beyond `DRAFT` without a file as warnings (some work is done directly by the
-orchestrator). A project declares
+orchestrator). It also warns when the queue says `ACCEPTED` or `DONE` but a
+task marker is still `[ ]` (task drift): ticking is an obligation on the agent,
+so it is checked rather than trusted. A project declares
 its legacy layout in `.ledgerwake/project.yaml` (section 8). The reference
 corpus is the VERA project; its stable shapes are pinned in its own
 `docs/FORMAT-CONTRACT.md`, checked by `scripts/check-format-contract.sh`.

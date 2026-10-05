@@ -90,13 +90,27 @@ describe.skipIf(!present)('VERA fixture (M1 acceptance)', () => {
     // VERA's checker never reports queue rows without a file: under `shopt -s nullglob` its
     // `ls docs/work-orders/WO-"$id"-*.md` becomes a bare `ls` and succeeds. We warn instead.
     const extra = index.diagnostics.filter(
-      (d) => d.level === 'warning' && d.code !== 'status-mismatch',
+      (d) => d.level === 'warning' && d.code !== 'status-mismatch' && d.code !== 'task-drift',
     );
     expect(extra.every((d) => d.code === 'missing-file')).toBe(true);
     expect(extra.map((d) => d.message)).toEqual([
       'queue row 001 is ACCEPTED but has no work-order file',
       'queue row 015 is DONE but has no work-order file',
     ]);
+  });
+
+  it('reports accepted work orders whose task markers were never all ticked', () => {
+    const drift = index.diagnostics.filter((d) => d.code === 'task-drift');
+    const expected = index.items.filter(
+      (i) =>
+        (i.status === 'ACCEPTED' || i.status === 'DONE') &&
+        i.tasks !== null &&
+        i.tasks.done < i.tasks.total,
+    );
+    expect(drift.map((d) => d.path)).toEqual(expected.map((i) => i.occurrences[0]!.path));
+    expect(drift.find((d) => d.path.includes('WO-008b'))?.message).toBe(
+      "WO-008b-differential-versions.md: queue says 'ACCEPTED' but 0 of 8 task(s) are ticked",
+    );
   });
 
   it('produces a byte-identical index on two runs', () => {

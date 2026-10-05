@@ -42,3 +42,12 @@ Source: implementing the legacy adapter against a read-only copy of VERA's
    design (WO-001, WO-015). VERA's own checker intends to fail on them but never
    does: under `shopt -s nullglob` its `ls docs/work-orders/WO-"$id"-*.md`
    becomes a bare `ls`. Reported to the owner; VERA is not edited from here.
+
+## D-003 — `lw check` warns about task drift (2026-10-05)
+
+Requested by the owner. A work order whose queue state is `ACCEPTED` or `DONE`
+but which still has `[ ]` task markers is reported as a `task-drift` warning
+(SPEC §4.1). It is a warning, not an error: like the header `Estado`, task
+markers in older work orders were not maintained. On the VERA fixture
+(`b4a257b`) 25 accepted work orders are affected, 17 of them with no task
+ticked at all (WO-002 to WO-014b, phase 0).

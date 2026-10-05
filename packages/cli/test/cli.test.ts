@@ -90,6 +90,6 @@ describe('lw', () => {
   it.skipIf(!existsSync(join(vera, 'docs')))('checks the VERA fixture without errors', () => {
     const result = capture(['check', vera, '--config', veraConfig]);
     expect(result.code).toBe(0);
-    expect(result.out.at(-1)).toBe('0 error(s), 34 warning(s)');
+    expect(result.out.at(-1)).toBe('0 error(s), 59 warning(s)');
   });
 });
