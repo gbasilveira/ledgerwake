@@ -44,6 +44,7 @@ action path to protect, and no credential of the observed systems is held.
 | Prompts or tool output leave the machine | Only metadata is shipped; the shipper and the server both drop content references; no content body is ever read for shipping | `central.test.ts` |
 | A client lies about who it is | The server stamps machine and team from the token | `central.test.ts` |
 | A malformed or huge request | Strict envelope validation of every event, whole-batch rejection, 1000 events and 8 MiB limits (413 sent before the connection closes), timeouts, no stack traces in answers | `central.test.ts` |
+| A client makes the server read its own disk | The central read model never looks for project files from a client-supplied `cwd` (`detectFromCwd: false`); it found a project on the server's disk before this was fixed (D-026) | `central.test.ts` |
 | Guessing tokens | 256-bit random tokens; failures answered 401 then 429 per address | `central.test.ts` |
 | Poisoned timestamps | Events more than a day ahead are refused | `central.test.ts` |
 

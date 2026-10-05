@@ -203,7 +203,7 @@ export function startCentral(options: CentralOptions): Promise<Central> {
       const response = handle(
         req.method ?? 'GET',
         `${url.pathname}${url.search}`,
-        new ReadModel(store, []),
+        new ReadModel(store, [], { detectFromCwd: false }),
         store,
         {
           now: clock.now(),

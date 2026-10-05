@@ -367,3 +367,16 @@ Read the conventions (now in a separate repository, all attributes in
 Development status). Claude Code exports none of them. Our envelope keeps its
 names; `docs/OTEL-MAPPING.md` gives the translation for a later export. Not read
 and so not claimed: the agent, event, metric and MCP documents.
+
+## D-026 — The central server must not read its own disk for clients (2026-10-05)
+
+Found by rereading the central read path, then demonstrated with a failing test.
+The central server reused the local read model, which attributes a session to a
+project by looking for `.ledgerwake/project.yaml` above the session's `cwd`. At
+the central server `cwd` comes from a client, so an authenticated machine could
+make the server probe its filesystem, parse a configuration it found there, and
+index and return that directory's documents. `ReadModel` now takes
+`detectFromCwd: false`, which the central server always passes. The test places a
+project on the server's disk, ingests a session whose `cwd` points into it, and
+checks that no project is attributed and no document is exposed; it fails
+without the option.

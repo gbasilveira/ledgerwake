@@ -63,6 +63,7 @@ export class ReadModel {
   constructor(
     private readonly store: Store,
     readonly projects: RegisteredProject[],
+    private readonly options: { detectFromCwd?: boolean } = {},
   ) {
     for (const project of projects) {
       this.places.push({ base: project.root, project, branch: null });
@@ -87,11 +88,18 @@ export class ReadModel {
     return index;
   }
 
-  /** The project a working directory belongs to: registered places first, then `.ledgerwake/project.yaml` above it. */
+  /**
+   * The project a working directory belongs to: registered places first, then (unless
+   * `detectFromCwd` is false) `.ledgerwake/project.yaml` above it.
+   */
   place(cwd: string): ProjectPlace | null {
     const path = resolve(cwd);
     const hit = this.places.find((p) => within(path, p.base));
     if (hit) return { project: hit.project, base: hit.base, branch: hit.branch };
+    // Looking for `.ledgerwake/project.yaml` above a directory reads the filesystem. A server whose
+    // directories come from remote clients (the central server) must never do that: it would let a
+    // client make it probe, parse and index its own disk.
+    if (this.options.detectFromCwd === false) return null;
     let current = path;
     for (;;) {
       if (existsSync(join(current, PROJECT_CONFIG_PATH))) {

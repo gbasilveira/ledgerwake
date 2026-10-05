@@ -1,11 +1,19 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { mapHookEvent } from '@ledgerwake/claude-code';
-import { type Clock, type LwEvent } from '@ledgerwake/core';
+import { type Clock, fixedClock, type LwEvent } from '@ledgerwake/core';
 import { Store } from '@ledgerwake/store';
 import {
   assertSafeUrl,
@@ -281,6 +289,57 @@ describe('central server', () => {
 
   it('refuses to listen beyond loopback without TLS', () => {
     expect(() => startCentral({ home: home(), host: '0.0.0.0', port: 0 })).toThrow(/without TLS/);
+  });
+});
+
+describe('central server and the server’s own filesystem', () => {
+  it('does not read the server filesystem on behalf of a client-supplied cwd', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'lw-probe-'));
+    // A directory on the SERVER that looks like a Ledgerwake project, with a secret-looking document.
+    const victim = mkdtempSync(join(tmpdir(), 'lw-victim-'));
+    mkdirSync(join(victim, '.ledgerwake'), { recursive: true });
+    mkdirSync(join(victim, 'docs'), { recursive: true });
+    writeFileSync(
+      join(victim, '.ledgerwake/project.yaml'),
+      'lw: 1\nslug: hijacked-slug\nadapter: legacy\n',
+    );
+    writeFileSync(
+      join(victim, 'docs/ORCHESTRATION.md'),
+      '| 001 | SERVER-SIDE-SECRET-TITLE | 0 | READY | x | — |\n',
+    );
+    const clock = fixedClock(Date.UTC(2026, 9, 5, 12));
+    const ingest = createToken(home, {
+      name: 'evil',
+      team: 'core',
+      scopes: ['ingest'],
+      clock,
+    }).token;
+    const read = createToken(home, { name: 'r', team: 'core', scopes: ['read'], clock }).token;
+    const central = await startCentral({ home, clock, port: 0 });
+    const port = (central.server.address() as AddressInfo).port;
+    try {
+      const m = mapHookEvent(
+        `${JSON.stringify({ spool: 'claude-code/0', received_at: Date.UTC(2026, 9, 5, 11), host: 'h', lw_item: null })}\n${JSON.stringify({ session_id: 's', cwd: join(victim, 'src'), hook_event_name: 'SessionStart', source: 'startup' })}\n`,
+      );
+      await fetch(`http://127.0.0.1:${port}/v1/events`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${ingest}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ events: [{ event: m.event, natural_key: m.naturalKey }] }),
+      });
+      const get = async (path: string) =>
+        (
+          await fetch(`http://127.0.0.1:${port}${path}`, {
+            headers: { authorization: `Bearer ${read}` },
+          })
+        ).text();
+      const sessions = JSON.parse(await get('/api/sessions')) as { project: string | null }[];
+      expect(sessions.map((x) => x.project)).toEqual([null]);
+      expect(JSON.stringify(sessions)).not.toContain('hijacked-slug');
+      expect(await get('/api/projects')).toBe('[]');
+      expect(await get('/api/projects/hijacked-slug')).not.toContain('SERVER-SIDE-SECRET-TITLE');
+    } finally {
+      await central.close();
+    }
   });
 });
 
