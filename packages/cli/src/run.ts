@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { events, forward, hooks, reconcile, sessions } from './commands/capture.js';
+import { events, forward, hooks, receive, reconcile, sessions } from './commands/capture.js';
 import { item, project, serve } from './commands/observe.js';
 import { check, reindex } from './commands/project.js';
 import { type Io, message, UsageError, type Values } from './io.js';
@@ -25,7 +25,8 @@ Capture (Claude Code):
   hooks install          Install the hook script and merge its settings into a file
     --settings <file>    Claude Code settings file to update (required)
     --hook <command>     Use this hook command instead of installing the script
-  forward                Move spooled hook events into the local store
+  receive                Local OTLP/JSON receiver for cost and usage (--port, default 4318)
+  forward                Move spooled hook and telemetry events into the local store
     --watch              Keep running; --interval <ms> between passes (default 1000)
   reconcile              Import transcripts (backfill, gap filling) and the commits
                          of registered projects
@@ -50,6 +51,7 @@ const COMMANDS: Record<string, Command> = {
   project,
   hooks,
   forward,
+  receive,
   reconcile,
   sessions,
   events,

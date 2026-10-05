@@ -8,10 +8,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { hookScriptPath, withCaptureHooks } from '@ledgerwake/claude-code';
-import { type LwEvent, openRegistry, stableStringify } from '@ledgerwake/core';
+import { hookScriptPath, mapOtelSpoolFile, withCaptureHooks } from '@ledgerwake/claude-code';
+import { type LwEvent, openRegistry, stableStringify, systemClock } from '@ledgerwake/core';
 import { syncProjectGit } from '@ledgerwake/api';
-import { forwardSpool, reconcileTranscripts, Store } from '@ledgerwake/store';
+import { forwardSpool, reconcileTranscripts, startReceiver, Store } from '@ledgerwake/store';
 import { homeDir, type Io, message, paths, UsageError, type Values } from '../io.js';
 import { withModel } from './observe.js';
 
@@ -65,7 +65,14 @@ export async function forward(_args: string[], values: Values, io: Io): Promise<
     throw new UsageError('--interval must be a positive number');
   try {
     for (;;) {
-      const r = forwardSpool(paths(home).spool, store);
+      const hooks = forwardSpool(paths(home).spool, store);
+      const otel = forwardSpool(paths(home).otelSpool, store, { map: mapOtelSpoolFile });
+      const r = {
+        files: hooks.files + otel.files,
+        inserted: hooks.inserted + otel.inserted,
+        duplicates: hooks.duplicates + otel.duplicates,
+        failed: hooks.failed + otel.failed,
+      };
       if (values.json) io.out(stableStringify(r, 0));
       else if (!values.watch || r.files + r.failed > 0)
         io.out(
@@ -156,4 +163,29 @@ export function events(args: string[], values: Values, io: Io): number {
   } finally {
     store.close();
   }
+}
+
+/** `lw receive [--port 4318] [--host 127.0.0.1]`: a local OTLP/JSON receiver for Claude Code telemetry. */
+export async function receive(_args: string[], values: Values, io: Io): Promise<number> {
+  const home = homeDir(values, io);
+  const port = Number(values.port ?? 4318);
+  const host = typeof values.host === 'string' ? values.host : '127.0.0.1';
+  if (!Number.isInteger(port) || port < 0 || port > 65535)
+    throw new UsageError('--port must be 0–65535');
+  const server = await startReceiver({
+    spool: paths(home).otelSpool,
+    clock: systemClock,
+    host,
+    port,
+  });
+  const address = server.address();
+  const actual = typeof address === 'object' && address ? address.port : port;
+  io.out(`receiving OTLP/JSON on http://${host}:${actual} (spool: ${paths(home).otelSpool})`);
+  io.out('Start Claude Code with:');
+  io.out(
+    `  CLAUDE_CODE_ENABLE_TELEMETRY=1 OTEL_LOGS_EXPORTER=otlp OTEL_METRICS_EXPORTER=otlp OTEL_EXPORTER_OTLP_PROTOCOL=http/json OTEL_EXPORTER_OTLP_ENDPOINT=http://${host}:${actual}`,
+  );
+  while (io.sleep && (await io.sleep(60_000)));
+  await new Promise((resolve) => server.close(resolve));
+  return 0;
 }

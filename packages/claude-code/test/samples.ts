@@ -164,3 +164,69 @@ export const subagentTranscript = [
 ];
 
 export const lines = (entries: object[]) => entries.map((e) => JSON.stringify(e));
+
+const s = (v: string) => ({ stringValue: v });
+const attrs = (o: Record<string, unknown>) =>
+  Object.entries(o).map(([key, value]) => ({ key, value }));
+
+/** Invented OTLP/JSON logs, shaped like those Claude Code 2.1.289 exported in the M0 spike. */
+export const otlpBody = {
+  resourceLogs: [
+    {
+      resource: {
+        attributes: attrs({ 'service.name': s('claude-code'), 'service.version': s('2.1.289') }),
+      },
+      scopeLogs: [
+        {
+          logRecords: [
+            {
+              timeUnixNano: '1791201600000000000',
+              body: s('claude_code.api_request'),
+              attributes: attrs({
+                'event.name': s('api_request'),
+                'event.sequence': { intValue: '7' },
+                'session.id': s('sess-o'),
+                'prompt.id': s('p-1'),
+                'user.email': s('someone@example.org'),
+                'user.account_uuid': s('acc-1'),
+                'organization.id': s('org-1'),
+                model: s('claude-x'),
+                cost_usd: { doubleValue: 0.0123 },
+                input_tokens: { intValue: '10' },
+                output_tokens: { intValue: '20' },
+                request_id: s('req_1'),
+                duration_ms: { intValue: '900' },
+              }),
+            },
+            {
+              timeUnixNano: '1791201601000000000',
+              attributes: attrs({
+                'event.name': s('skill_activated'),
+                'event.sequence': { intValue: '8' },
+                'session.id': s('sess-o'),
+                'skill.name': s('pdf'),
+              }),
+            },
+            {
+              timeUnixNano: '1791201602000000000',
+              attributes: attrs({
+                'event.name': s('api_error'),
+                'event.sequence': { intValue: '9' },
+                'session.id': s('sess-o'),
+                status_code: { intValue: '429' },
+                error: s('rate_limit_error'),
+              }),
+            },
+            {
+              attributes: attrs({
+                'event.name': s('user_prompt'),
+                'session.id': s('sess-o'),
+                prompt: s('<REDACTED>'),
+              }),
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};

@@ -6,6 +6,8 @@ import type { Store } from './store.js';
 
 export interface ForwardOptions {
   batchSize?: number;
+  /** Maps one spool file to events (default: a Claude Code hook payload). */
+  map?: (text: string) => CapturedEvent[];
   /** Test seam: called after each committed batch, before its spool files are removed. */
   afterCommit?: (files: string[]) => void;
 }
@@ -29,6 +31,7 @@ export function forwardSpool(
   options: ForwardOptions = {},
 ): ForwardResult {
   const batchSize = options.batchSize ?? 500;
+  const map = options.map ?? ((text: string) => [mapHookEvent(text)]);
   const incoming = join(spool, 'new');
   const result: ForwardResult = { files: 0, inserted: 0, duplicates: 0, failed: 0 };
   if (!existsSync(incoming)) return result;
@@ -47,7 +50,7 @@ export function forwardSpool(
         continue; // removed by a concurrent forwarder
       }
       try {
-        batch.push(mapHookEvent(text));
+        batch.push(...map(text));
         consumed.push(file);
       } catch {
         mkdirSync(join(spool, 'failed'), { recursive: true, mode: 0o700 });

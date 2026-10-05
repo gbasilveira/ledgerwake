@@ -151,3 +151,18 @@ document actually uses both `##` (31 records) and `###` (18). Both are read.
 Records become items of type `dr` with a date and their heading as occurrence;
 the decision index (`DR-INDEX.md`) is checked both ways and differences are
 warnings. On the VERA fixture: 49 records, all dated, index consistent.
+
+## D-013 — Cost from OpenTelemetry through a spooling receiver (2026-10-05)
+
+`lw receive` is a local OTLP/HTTP endpoint (JSON only; protobuf answers 415 with
+the setting to use). Like the hook it only writes each request to a spool
+(`spool/otel/`) and answers; `lw forward` maps logs later. Kept: `api_request`
+(→ `usage` with `cost_usd`, tokens, model, `refs.request`), `skill_activated`
+(→ `skill.use`), `mcp_server_connection` (→ `mcp.connect`), `api_error`
+(→ `error`, including rate limits). Dropped: events hooks already capture, and
+all `user.*` and `organization.*` attributes. OTel `request_id` equals the
+transcript `requestId` (verified on spike data), so cost per sub-agent is the
+OTel cost joined to the transcript usage of the same request. Live check: a
+session with one sub-agent reported `total_cost_usd` 0.0966942; the four OTel
+`api_request` records sum to the same value, split between the main agent and
+the sub-agent by the join.

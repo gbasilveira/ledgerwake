@@ -25,6 +25,7 @@ export function homeDir(values: Values, io: Io): string {
 export const paths = (home: string) => ({
   store: join(home, 'data', 'store.db'),
   spool: join(home, 'spool', 'claude-code'),
+  otelSpool: join(home, 'spool', 'otel'),
   hook: join(home, 'bin', 'claude-code-hook.sh'),
 });
 

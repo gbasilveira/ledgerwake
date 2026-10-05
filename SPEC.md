@@ -177,7 +177,8 @@ three sources, joined on `session`:
    behind a parser keyed on that version.
 3. **OpenTelemetry**: cost and token usage by model, sub-agent, skill, plugin and
    MCP server. It does not carry the working directory, which is why hooks are
-   required for project attribution. It joins to hooks on `session.id`,
+   required for project attribution. Adapters receive it locally as OTLP/JSON
+   and spool it like hook events. It joins to hooks on `session.id`,
    `prompt.id` and `tool_use_id`. Its records carry personal identifiers
    (`user.email`, `user.account_uuid`), which the edge MUST drop or hash.
 
