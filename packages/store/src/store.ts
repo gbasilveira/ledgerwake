@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_session ON events (session, ts, id);
 CREATE INDEX IF NOT EXISTS events_ts ON events (ts, id);
+CREATE INDEX IF NOT EXISTS events_usage_request ON events (json_extract(json, '$.data.request_id'))
+  WHERE kind = 'usage' AND channel = 'transcript';
+CREATE INDEX IF NOT EXISTS events_kind ON events (kind, session);
 CREATE TABLE IF NOT EXISTS content (ref TEXT PRIMARY KEY, body TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS checkpoints (source TEXT PRIMARY KEY, position INTEGER NOT NULL, state TEXT);
 -- Read model: which item a commit belongs to by branch membership. Rebuilt per project; never canonical.
@@ -39,6 +42,18 @@ export interface InsertResult {
 export interface Checkpoint {
   position: number;
   state: string | null;
+}
+
+export interface UsageRow {
+  session: string | null;
+  agent_id: string | null;
+  model: string | null;
+  /** Null when only the transcript saw the request (no OpenTelemetry). */
+  cost_usd: number | null;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
 }
 
 export interface SessionSummary {
@@ -202,6 +217,82 @@ export class Store {
     for (const r of rows)
       map.set(r.sha, [...(map.get(r.sha) ?? []), { item: r.item, rule: r.rule }]);
     return map;
+  }
+
+  /**
+   * One row per API request: cost from OpenTelemetry where present, joined to the transcript's usage
+   * of the same request for the agent; transcript-only requests carry tokens without cost.
+   */
+  usage(): UsageRow[] {
+    const rows = this.db
+      .prepare(
+        `SELECT o.session AS session, t.agent_id AS agent_id,
+                json_extract(o.json, '$.data.model') AS model,
+                json_extract(o.json, '$.data.cost_usd') AS cost_usd,
+                json_extract(o.json, '$.data.input_tokens') AS input_tokens,
+                json_extract(o.json, '$.data.output_tokens') AS output_tokens,
+                json_extract(o.json, '$.data.cache_read_tokens') AS cache_read_tokens,
+                json_extract(o.json, '$.data.cache_creation_tokens') AS cache_creation_tokens,
+                o.ts AS ts
+           FROM events o
+           LEFT JOIN events t
+             ON t.kind = 'usage' AND t.channel = 'transcript'
+            AND json_extract(t.json, '$.data.request_id') = json_extract(o.json, '$.refs.request')
+          WHERE o.kind = 'usage' AND o.channel = 'otel'
+         UNION ALL
+         SELECT t.session, t.agent_id,
+                json_extract(t.json, '$.data.model'),
+                NULL,
+                json_extract(t.json, '$.data.input_tokens'),
+                json_extract(t.json, '$.data.output_tokens'),
+                json_extract(t.json, '$.data.cache_read_input_tokens'),
+                json_extract(t.json, '$.data.cache_creation_input_tokens'),
+                t.ts
+           FROM events t
+          WHERE t.kind = 'usage' AND t.channel = 'transcript'
+            AND NOT EXISTS (
+              SELECT 1 FROM events o
+               WHERE o.kind = 'usage' AND o.channel = 'otel'
+                 AND json_extract(o.json, '$.refs.request') = json_extract(t.json, '$.data.request_id'))
+          ORDER BY ts`,
+      )
+      .all() as Record<string, unknown>[];
+    const n = (v: unknown) =>
+      typeof v === 'number' ? v : v === null || v === undefined ? 0 : Number(v);
+    return rows.map((r) => ({
+      session: (r.session as string | null) ?? null,
+      agent_id: (r.agent_id as string | null) ?? null,
+      model: (r.model as string | null) ?? null,
+      cost_usd: r.cost_usd === null || r.cost_usd === undefined ? null : n(r.cost_usd),
+      input_tokens: n(r.input_tokens),
+      output_tokens: n(r.output_tokens),
+      cache_read_tokens: n(r.cache_read_tokens),
+      cache_creation_tokens: n(r.cache_creation_tokens),
+    }));
+  }
+
+  /** Tool calls (deduplicated across channels by natural key) and skill activations. */
+  tools(): {
+    session: string | null;
+    agent_id: string | null;
+    kind: string;
+    name: string | null;
+  }[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT session, agent_id, kind,
+                  coalesce(json_extract(json, '$.data.tool_name'), json_extract(json, '$.data."skill.name"'),
+                           json_extract(json, '$.data.server_name'), json_extract(json, '$.data."mcp_server.name"')) AS name
+             FROM events WHERE kind IN ('tool.call', 'skill.use', 'mcp.connect') ORDER BY ts, id`,
+        )
+        .all() as {
+        session: string | null;
+        agent_id: string | null;
+        kind: string;
+        name: string | null;
+      }[]
+    ).map((r) => ({ ...r }));
   }
 
   content(ref: string): string | null {

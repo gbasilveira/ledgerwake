@@ -1,6 +1,7 @@
 import { stableStringify } from '@ledgerwake/core';
 import type { Store } from '@ledgerwake/store';
 import type { ReadModel } from './readmodel.js';
+import { costView, overviewView, toolsView } from './views.js';
 
 export interface Response {
   status: number;
@@ -25,6 +26,9 @@ const notFound = (what: string) => json({ error: `${what} not found` }, 404);
  *   GET /api/items/<project>/<key>        an item with its sessions and commits
  *   GET /api/commits[?project=]           git commits with item links
  *   GET /api/content/<ref>                full content kept at the edge
+ *   GET /api/projects/<slug>/overview     items by type and status, phases, timeline
+ *   GET /api/cost[?project=&item=&session=]   cost and tokens by model, agent, session, item
+ *   GET /api/tools[?project=&item=&session=]  tool calls, MCP servers, skills
  * `model` is built per request, so every answer reflects the current files and store.
  */
 export function handle(method: string, url: string, model: ReadModel, store: Store): Response {
@@ -53,6 +57,10 @@ export function handle(method: string, url: string, model: ReadModel, store: Sto
           }),
         );
       }
+      if (rest[1] === 'overview') {
+        const overview = overviewView(model, rest[0]!);
+        return overview ? json(overview) : notFound('project');
+      }
       const index = model.index(rest[0]!);
       return index ? json(index) : notFound('project');
     }
@@ -75,6 +83,10 @@ export function handle(method: string, url: string, model: ReadModel, store: Sto
       const found = model.item(rest.join('/'));
       return found ? json(found) : notFound('item');
     }
+    case 'cost':
+      return json(costView(model, filter(q)));
+    case 'tools':
+      return json(toolsView(model, filter(q)));
     case 'commits':
       return json(model.commits(q.get('project') ?? undefined));
     case 'content': {
@@ -86,4 +98,12 @@ export function handle(method: string, url: string, model: ReadModel, store: Sto
     default:
       return notFound('route');
   }
+}
+
+function filter(q: URLSearchParams) {
+  return {
+    project: q.get('project') ?? undefined,
+    item: q.get('item') ?? undefined,
+    session: q.get('session') ?? undefined,
+  };
 }

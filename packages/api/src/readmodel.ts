@@ -193,6 +193,14 @@ export class ReadModel {
     });
   }
 
+  usage() {
+    return this.store.usage();
+  }
+
+  tools() {
+    return this.store.tools();
+  }
+
   item(qid: string): { item: Item; sessions: SessionView[]; commits: CommitView[] } | null {
     const slug = qid.split('/')[0]!;
     const item = this.index(slug)?.items.find((i) => i.qid === qid);
