@@ -182,14 +182,25 @@ three sources, joined on `session`:
 
 ### 5.1 Linking a session to an item
 
-An adapter links a session to a process item from, in order of precedence:
+The read model links a session to process items by these rules, in order of
+precedence:
 
-1. the environment variable `LW_ITEM` (a qualified id), recorded by the hook;
-2. the git branch of the session (`gitBranch` in transcripts, or read by the
-   hook from `cwd`), matched against the item's `branch`;
-3. the working directory, matched against known worktrees.
+1. `env`: the environment variable `LW_ITEM` (a qualified id), recorded by the
+   hook;
+2. `branch`: a git branch the session ran on, matched against the item's
+   `branch`. Sources are `gitBranch` in transcripts and the branch of the linked
+   git worktree containing the session's `cwd`. The branch checked out *now* in
+   a main working tree is not used: it says nothing about a past session;
+3. `worktree`: a directory name in the session's `cwd`, below the project root
+   or worktree, equal to the item key (`wo-062` for `WO-062`) or starting with
+   it and a hyphen.
 
-The first that resolves wins; the link records which rule produced it.
+A session's project is the registered project whose root, extra worktree
+directory or linked git worktree contains its `cwd` (the longest match), or else
+the nearest directory above `cwd` holding `.ledgerwake/project.yaml`. Links are
+computed from events and files on request and never written into events; each
+link records the rule that produced it, and the first rule is the primary
+link.
 
 ## 6. Capture and delivery
 
@@ -213,7 +224,15 @@ The first that resolves wins; the link records which rule produced it.
    for a natural key and ignores later ones.
 3. **Git is the durable ledger.** Commits are recorded (`git.commit`) by a
    `post-commit` hook and by the reconciler, so work by agents without hooks is
-   still visible.
+   still visible. A commit event carries the sha, parents, subject, line
+   counts and the `Co-Authored-By` trailers that name an agent; it does not
+   carry author names or e-mail addresses (agents, never people). Commits are
+   linked to items in a rebuildable read model, by rule: `merge` (a merge
+   commit whose subject names the item's branch or key claims
+   `M^2 --not M^1`), `branch` (commits on an existing item branch and on no
+   other local branch) and `subject` (the key appears in the subject). The
+   branch through which a log walk reached a commit is not used: it credits
+   shared history to arbitrary branches.
 4. **Reconciler.** Periodically compares repositories and transcripts with the
    index and fills gaps. It is the safety net for a lost event or a stopped
    server. It reads transcripts incrementally from a committed byte position
@@ -268,6 +287,9 @@ paths:
   log: docs/orchestration-log/LOG.md
 ```
 
+- A local installation observes the projects listed in
+  `$LW_HOME/projects.yaml` (`lw project add`). An entry MAY point `config` at a
+  file outside the repository, for repositories that must not be edited.
 - A **local installation** (`$LW_HOME`, by default `~/.ledgerwake`) keeps a
   SQLite store (`data/store.db`), the spool (`spool/<agent>/`) and the installed
   hook (`bin/`); it is complete on its own. Full content (prompts, responses,
@@ -285,7 +307,8 @@ paths:
    Uploading `full` content is an opt-in policy per project.
 2. Redaction is applied at the edge before anything leaves the machine, with
    configurable patterns.
-3. Local services bind to `127.0.0.1` by default. Remote access needs
+3. Local services bind to `127.0.0.1` by default (the read API, `lw serve`,
+   on port 8754; it answers `GET` only). Remote access needs
    authentication and per-team access control.
 4. Stores and spools MUST be kept out of version control.
 5. Any **action** (anything beyond reading) is authenticated and itself

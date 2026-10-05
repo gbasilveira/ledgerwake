@@ -100,3 +100,46 @@ the API changes before it is stable.
   `hook.error`; `<agent>.<event>` for other native signals; `source.channel`.
 - Transcript assistant entries carry no `promptId`; the parser carries the last
   prompt id of the file forward.
+
+## D-008 — Project registry outside the repositories (2026-10-05)
+
+VERA must not be edited, so it cannot receive a `.ledgerwake/project.yaml`.
+Projects are registered in `$LW_HOME/projects.yaml` (`lw project add <root>
+[--config <file>] [--worktrees <dir>]`); `config` may live anywhere. The VERA
+entry uses `packages/core/test/fixtures/vera-project.yaml`. Detection from `cwd`
+uses the registry first (roots, extra worktree directories, linked git
+worktrees read from `.git/worktrees/*`), then `.ledgerwake/project.yaml` above
+the directory.
+
+## D-009 — Session links are computed, and never from today's checkout (2026-10-05)
+
+Links are a read model computed on request (SPEC §5.1); nothing is written into
+immutable events. A first version also used the branch checked out now in the
+session's `cwd`; that is wrong for a main working tree (a week-old session would
+follow today's checkout), so only transcript `gitBranch` and the branch of a
+linked worktree are used. A hook-only session in a main working tree therefore
+has no branch until `lw reconcile` reads its transcript.
+
+## D-010 — Commits: no authors, range-based membership (2026-10-05)
+
+- Author names and e-mail addresses are not stored; `Co-Authored-By` trailers
+  are kept only when they name an agent (SPEC §6.3).
+- `git log --all --source` was tried for branch attribution and rejected: on a
+  test repository it credited the shared root commit to a work-order branch.
+  Membership now comes from ranges (`M^2 --not M^1` for merges naming the
+  branch or key; `<branch> --not <other branches>` for unmerged work) and is
+  stored in `commit_links`, rebuilt by each `lw reconcile`.
+- VERA names keys rather than branches in merge subjects ("merge: WO-062 …"),
+  so labels include keys, matched with word boundaries (WO-062 never matches
+  WO-062b). On VERA (`482` commits) branch-only membership linked 16 commits;
+  with keys, 310.
+- The `branch` rule depends on which local branches exist; a clone with fewer
+  branches links fewer commits (294 versus 310 on VERA).
+
+## D-011 — Read API (2026-10-05)
+
+`lw serve` exposes a read-only JSON API with `node:http` (no framework) on
+`127.0.0.1:8754`: projects, items, sessions, commits and edge content. The read
+model is rebuilt per request, so it always reflects the files and the store;
+`POST` and other methods answer 405. Binding elsewhere prints a warning, since
+there is no authentication yet.

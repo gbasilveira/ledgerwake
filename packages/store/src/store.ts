@@ -24,6 +24,11 @@ CREATE INDEX IF NOT EXISTS events_session ON events (session, ts, id);
 CREATE INDEX IF NOT EXISTS events_ts ON events (ts, id);
 CREATE TABLE IF NOT EXISTS content (ref TEXT PRIMARY KEY, body TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS checkpoints (source TEXT PRIMARY KEY, position INTEGER NOT NULL, state TEXT);
+-- Read model: which item a commit belongs to by branch membership. Rebuilt per project; never canonical.
+CREATE TABLE IF NOT EXISTS commit_links (
+  project TEXT NOT NULL, sha TEXT NOT NULL, item TEXT NOT NULL, rule TEXT NOT NULL,
+  PRIMARY KEY (project, sha, item)
+);
 `;
 
 export interface InsertResult {
@@ -148,6 +153,55 @@ export class Store {
         json: string;
       }[]
     ).map((row) => JSON.parse(row.json) as LwEvent);
+  }
+
+  /** Events of one kind, optionally of one project, in time order. */
+  eventsOfKind(kind: string, project?: string): LwEvent[] {
+    const rows = (
+      project === undefined
+        ? this.db.prepare('SELECT json FROM events WHERE kind = ? ORDER BY ts, id').all(kind)
+        : this.db
+            .prepare('SELECT json FROM events WHERE kind = ? AND project = ? ORDER BY ts, id')
+            .all(kind, project)
+    ) as { json: string }[];
+    return rows.map((row) => JSON.parse(row.json) as LwEvent);
+  }
+
+  /** Per session: the distinct working directories and git branches it reported. */
+  sessionFacts(): Map<string, { cwds: string[]; branches: string[] }> {
+    const rows = this.db
+      .prepare(
+        `SELECT session,
+                group_concat(DISTINCT cwd) AS cwds,
+                group_concat(DISTINCT json_extract(json, '$.data.git_branch')) AS branches
+           FROM events WHERE session IS NOT NULL GROUP BY session`,
+      )
+      .all() as { session: string; cwds: string | null; branches: string | null }[];
+    const list = (v: string | null) => (v ? v.split(',').filter(Boolean).sort() : []);
+    return new Map(
+      rows.map((r) => [r.session, { cwds: list(r.cwds), branches: list(r.branches) }]),
+    );
+  }
+
+  /** Replaces the commit ↔ item links of one project. */
+  replaceCommitLinks(project: string, links: { sha: string; item: string; rule: string }[]): void {
+    this.transaction(() => {
+      this.db.prepare('DELETE FROM commit_links WHERE project = ?').run(project);
+      const insert = this.db.prepare(
+        'INSERT OR IGNORE INTO commit_links (project, sha, item, rule) VALUES (?, ?, ?, ?)',
+      );
+      for (const l of links) insert.run(project, l.sha, l.item, l.rule);
+    });
+  }
+
+  commitLinks(project: string): Map<string, { item: string; rule: string }[]> {
+    const rows = this.db
+      .prepare('SELECT sha, item, rule FROM commit_links WHERE project = ? ORDER BY sha, item')
+      .all(project) as { sha: string; item: string; rule: string }[];
+    const map = new Map<string, { item: string; rule: string }[]>();
+    for (const r of rows)
+      map.set(r.sha, [...(map.get(r.sha) ?? []), { item: r.item, rule: r.rule }]);
+    return map;
   }
 
   content(ref: string): string | null {

@@ -8,6 +8,8 @@ export default defineConfig({
       '@ledgerwake/claude-code': fileURLToPath(
         new URL('./packages/claude-code/src/index.ts', import.meta.url),
       ),
+      '@ledgerwake/api': fileURLToPath(new URL('./packages/api/src/index.ts', import.meta.url)),
+      '@ledgerwake/git': fileURLToPath(new URL('./packages/git/src/index.ts', import.meta.url)),
       '@ledgerwake/store': fileURLToPath(new URL('./packages/store/src/index.ts', import.meta.url)),
     },
   },
