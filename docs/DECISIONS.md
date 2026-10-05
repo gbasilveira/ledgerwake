@@ -261,3 +261,47 @@ pipelines appear in the README only as examples of that use. Consequence for
 safety: with no action path, the local API stays read-only and an
 unauthenticated loopback server remains acceptable provided it is protected
 against browser-based access (D-019).
+
+## D-019 — Local servers refuse foreign Host and Origin (2026-10-05)
+
+An audit by command found that the API and the OTLP receiver answered a request
+sending `Host: evil.example` (HTTP 200). A web page can reach `127.0.0.1` through
+DNS rebinding and read prompts and tool output. Both now refuse (403) any `Host`
+that is not a loopback name or the listen address, and any foreign or `null`
+`Origin`; `lw serve` and `lw receive` refuse a non-loopback `--host` without
+`--allow-remote`. The browser's same-origin policy already blocked cross-origin
+reads without rebinding (no CORS headers are sent).
+
+## D-020 — Redaction at the edge (2026-10-05)
+
+SPEC §9.2 promised redaction and it was not built: the audit stored an
+Anthropic key, an AWS key and a GitHub token in clear. Redaction now sits in
+`Store.insert`, the one place events enter, so no capture path can forget it.
+Lessons recorded while building it:
+
+- A leading `\b` defeats matching in JSON-encoded content (a key after `\n` is
+  preceded by the letter `n`), so patterns have no leading boundary.
+- Without that boundary, an unbounded leading class is quadratic on long
+  identifiers (a test hung). Every quantifier is now bounded, and a test feeds
+  ten hostile shapes of 200 000 characters.
+- `const token = nextToken();` was redacted; calls and variable references are
+  now excluded from the assignment rule.
+- A value stops at a backslash, so `KEY=abc\nNEXT=...` does not swallow the
+  next line of JSON.
+
+Not done: scrubbing stores created before this change (none holds real data;
+documented in SECURITY.md).
+
+## D-021 — Further hardening (2026-10-05)
+
+- The hook now always reads its input to the end. A full-suite run failed once
+  with `spawnSync sh EPIPE`: when the hook could not capture it exited without
+  reading, so the writer (in production, Claude Code) got a broken pipe, which
+  is a way of failing the agent (rule 5). A test sends 2 MB to a failing hook
+  fifty times.
+- git runs with the repository's fsmonitor, pager, hooks and external diff
+  disabled and optional locks off; a test plants programs in a repository's
+  config and checks that none runs.
+- The hook path in generated settings is shell-quoted.
+- Process-type key patterns with nested quantifiers or over 120 characters are
+  rejected, and keys over 64 characters never match.

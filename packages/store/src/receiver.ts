@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import type { Clock } from '@ledgerwake/core';
+import { type Clock, requestAllowed } from '@ledgerwake/core';
 import { writeSpoolFile } from './spool.js';
 
 export interface ReceiverOptions {
@@ -9,6 +9,7 @@ export interface ReceiverOptions {
   port?: number;
   /** Largest accepted request body in bytes (default 16 MiB). */
   limit?: number;
+  allowedHosts?: string[];
 }
 
 const ACCEPTED = new Set(['/v1/logs', '/v1/metrics', '/v1/traces']);
@@ -26,6 +27,16 @@ export function startReceiver(options: ReceiverOptions): Promise<Server> {
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(body);
     };
+    if (
+      !requestAllowed(
+        { host: req.headers.host, origin: req.headers.origin },
+        options.host ?? '127.0.0.1',
+        options.allowedHosts,
+      )
+    ) {
+      req.resume();
+      return reply(403, '{"error":"host or origin not allowed"}');
+    }
     if (req.method !== 'POST' || !ACCEPTED.has(path)) return reply(404, '{"error":"not found"}');
     if (!(req.headers['content-type'] ?? '').startsWith('application/json')) {
       req.resume();

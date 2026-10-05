@@ -1,7 +1,13 @@
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { CapturedEvent, LwEvent } from '@ledgerwake/core';
+import {
+  type CapturedEvent,
+  defaultRedactor,
+  type LwEvent,
+  type Redactor,
+  redactCaptured,
+} from '@ledgerwake/core';
 
 export const STORE_VERSION = 'store/1';
 
@@ -95,9 +101,16 @@ function migrate(db: DatabaseSync): void {
  * Events are immutable: insertion ignores an event whose id or natural key is already present.
  */
 export class Store {
-  private constructor(private readonly db: DatabaseSync) {}
+  private constructor(
+    private readonly db: DatabaseSync,
+    private readonly redact: Redactor,
+  ) {}
 
-  static open(path: string): Store {
+  /**
+   * Opens (creating if needed) a store. Everything inserted passes through `redactor`, by default
+   * the built-in secret patterns (SPEC §9.2): this is the single point where content enters.
+   */
+  static open(path: string, options: { redactor?: Redactor } = {}): Store {
     if (path !== ':memory:') {
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     }
@@ -106,7 +119,7 @@ export class Store {
     db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA busy_timeout = 5000;');
     db.exec(SCHEMA);
     migrate(db);
-    return new Store(db);
+    return new Store(db, options.redactor ?? defaultRedactor);
   }
 
   close(): void {
@@ -136,7 +149,8 @@ export class Store {
       'INSERT OR IGNORE INTO content (ref, body) VALUES (?, ?)',
     );
     let inserted = 0;
-    for (const { event, naturalKey, contents } of batch) {
+    for (const original of batch) {
+      const { event, naturalKey, contents } = redactCaptured(original, this.redact);
       const result = insertEvent.run(
         event.id,
         naturalKey,

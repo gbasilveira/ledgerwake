@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import { type Clock, openRegistry, systemClock } from '@ledgerwake/core';
+import { type Clock, openRegistry, requestAllowed, systemClock } from '@ledgerwake/core';
 import { loadAlertConfig } from './alerts.js';
 import type { Store } from '@ledgerwake/store';
 import { handle } from './handler.js';
@@ -14,11 +14,28 @@ export interface ServeOptions {
   /** Directory with the dashboard's files; when absent only the API is served. */
   dashboard?: string;
   clock?: Clock;
+  /** Further host names the server answers to, when listening beyond loopback. */
+  allowedHosts?: string[];
 }
 
 /** Starts the read-only API. Binds to 127.0.0.1 unless told otherwise (SPEC §9.3). */
 export function serve(options: ServeOptions): Promise<Server> {
+  const listenHost = options.host ?? '127.0.0.1';
   const server = createServer((req, res) => {
+    if (
+      !requestAllowed(
+        { host: req.headers.host, origin: req.headers.origin },
+        listenHost,
+        options.allowedHosts,
+      )
+    ) {
+      res.writeHead(403, {
+        'content-type': 'application/json; charset=utf-8',
+        ...SECURITY_HEADERS,
+      });
+      res.end('{"error":"host or origin not allowed"}');
+      return;
+    }
     let response;
     const path = (req.url ?? '/').split('?')[0]!;
     try {

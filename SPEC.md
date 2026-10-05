@@ -359,12 +359,30 @@ paths:
 1. By default the central index holds **metadata and cost only**. Prompts,
    responses and thinking stay at the edge, referenced by `content.ref`.
    Uploading `full` content is an opt-in policy per project.
-2. Redaction is applied at the edge before anything leaves the machine, with
-   configurable patterns.
-3. Local services bind to `127.0.0.1` by default (the read API, `lw serve`,
-   on port 8754; it answers `GET` only). Remote access needs
-   authentication and per-team access control.
-4. Stores and spools MUST be kept out of version control.
+2. Redaction is applied at the edge before anything is stored or leaves the
+   machine, at the single point where events enter the store. A built-in set of
+   credential patterns always applies (cloud and API keys, tokens, private
+   keys, JWTs, bearer tokens, credentials in URLs, and values assigned to names
+   that say they are secrets); `$LW_HOME/redaction.yaml` adds patterns. A
+   redacted value is replaced by `[REDACTED:<name>]`, and content references are
+   hashes of the redacted text. Patterns MUST run in linear time (bounded
+   quantifiers, no nesting); configured patterns that nest quantifiers are
+   refused. Redaction is best-effort: it removes known shapes, not every secret.
+3. Local services bind to `127.0.0.1` by default (the read API and dashboard,
+   `lw serve`, port 8754, `GET` only; the telemetry receiver, `lw receive`, port
+   4318). They have no authentication, so they MUST refuse any request whose
+   `Host` is not a loopback name (or the address they listen on) and any
+   request with a foreign or `null` `Origin`: this stops a web page reaching
+   them through DNS rebinding. They refuse to listen beyond loopback unless the
+   owner passes `--allow-remote`. Remote access needs authentication and
+   per-team access control.
+4. Stores and spools MUST be kept out of version control, and private to the
+   user: directories 0700, files 0600. Spooled hook payloads are raw until the
+   forwarder redacts them into the store, so the spool is as sensitive as the
+   transcripts Claude Code itself keeps.
+4a. Ledgerwake runs git only read-only on repositories the owner registered,
+   with the repository's own programs disabled (fsmonitor, pager, hooks,
+   external diff), and never writes to them.
 5. Ledgerwake does not act (D-018): it reads files, git, transcripts and
    telemetry, and never edits a document, starts or stops an agent, or injects a
    prompt. Its only writes are to its own store and spool. If actions are ever

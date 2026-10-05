@@ -79,3 +79,30 @@ describe('store migration', () => {
     again.close();
   });
 });
+
+describe('store redaction', () => {
+  it('never keeps a credential from a hook payload, in content or in the event', () => {
+    const secret = 'sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789';
+    const text = `${JSON.stringify({ spool: 'claude-code/0', received_at: 1, host: 'h', lw_item: null })}\n${JSON.stringify(
+      {
+        session_id: 's',
+        cwd: '/x',
+        hook_event_name: 'PostToolUse',
+        tool_name: 'Bash',
+        tool_use_id: 't9',
+        tool_input: { command: `curl -H "x-api-key: ${secret}"` },
+        tool_response: { stdout: `KEY=${secret}` },
+      },
+    )}\n`;
+    const store = Store.open(':memory:');
+    store.insert([mapHookEvent(text)]);
+    const [event] = store.events('s');
+    expect(JSON.stringify(event)).not.toContain(secret);
+    for (const ref of Object.values(
+      (event!.data as { content_refs: Record<string, string> }).content_refs,
+    )) {
+      expect(store.content(ref)).not.toContain(secret);
+      expect(store.content(ref)).toContain('[REDACTED:');
+    }
+  });
+});

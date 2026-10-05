@@ -41,3 +41,37 @@ describe('OpenTelemetry receiver', () => {
     expect(store.events('sess-o').map((e) => e.kind)).toEqual(['usage', 'skill.use', 'error']);
   });
 });
+
+describe('receiver request origin', () => {
+  it('refuses a rebound Host without spooling anything', async () => {
+    const { request } = await import('node:http');
+    const spool = join(tempDir(), 'spool/otel');
+    const server = await startReceiver({ spool, clock: fixedClock(1), port: 0 });
+    const { port } = server.address() as AddressInfo;
+    const post = (host: string) =>
+      new Promise<number>((resolve, reject) => {
+        const req = request(
+          {
+            host: '127.0.0.1',
+            port,
+            path: '/v1/logs',
+            method: 'POST',
+            headers: { Host: host, 'content-type': 'application/json' },
+          },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode ?? 0);
+          },
+        );
+        req.on('error', reject);
+        req.end('{}');
+      });
+    try {
+      expect(await post('evil.example')).toBe(403);
+      expect(await post(`127.0.0.1:${port}`)).toBe(200);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+    expect(readdirSync(join(spool, 'new'))).toHaveLength(1);
+  });
+});

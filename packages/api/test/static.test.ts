@@ -36,3 +36,42 @@ describe('dashboard serving', () => {
     }
   });
 });
+
+describe('request origin', () => {
+  it('refuses a rebound Host or a foreign Origin on the API and the dashboard', async () => {
+    const { request } = await import('node:http');
+    const home = mkdtempSync(join(tmpdir(), 'lw-guard-'));
+    const store = Store.open(':memory:');
+    const server = await serve({ home, store, port: 0, dashboard });
+    const { port } = server.address() as AddressInfo;
+    // fetch() forbids overriding Host, so use a raw request.
+    const status = (path: string, headers: Record<string, string>) =>
+      new Promise<number>((resolve, reject) => {
+        const req = request({ host: '127.0.0.1', port, path, headers }, (res) => {
+          res.resume();
+          resolve(res.statusCode ?? 0);
+        });
+        req.on('error', reject);
+        req.end();
+      });
+    try {
+      expect(await status('/api/sessions', { Host: `127.0.0.1:${port}` })).toBe(200);
+      expect(await status('/api/sessions', { Host: 'evil.example' })).toBe(403);
+      expect(await status('/', { Host: 'evil.example' })).toBe(403);
+      expect(
+        await status('/api/sessions', {
+          Host: `127.0.0.1:${port}`,
+          Origin: 'https://evil.example',
+        }),
+      ).toBe(403);
+      expect(
+        await status('/api/sessions', {
+          Host: `localhost:${port}`,
+          Origin: `http://localhost:${port}`,
+        }),
+      ).toBe(200);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+});

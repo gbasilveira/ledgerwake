@@ -49,6 +49,7 @@ Read:
 
 Common options:
   --home <dir>           Local installation (default: $LW_HOME or ~/.ledgerwake)
+  --allow-remote         Allow --host beyond loopback (the servers have no authentication)
   --json                 Print JSON
   -h, --help             Show this help`;
 
@@ -90,6 +91,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
         worktrees: { type: 'string', multiple: true },
         port: { type: 'string' },
         host: { type: 'string' },
+        'allow-remote': { type: 'boolean', default: false },
         states: { type: 'string' },
         prefix: { type: 'string' },
         title: { type: 'string' },

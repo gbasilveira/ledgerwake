@@ -1,4 +1,11 @@
-import { openRegistry, registerProject, stableStringify, systemClock } from '@ledgerwake/core';
+import {
+  isLoopbackHost,
+  loadRedactor,
+  openRegistry,
+  registerProject,
+  stableStringify,
+  systemClock,
+} from '@ledgerwake/core';
 import {
   alerts,
   autonomyReport,
@@ -53,7 +60,7 @@ export function project(args: string[], values: Values, io: Io): number {
 
 export function withModel<T>(values: Values, io: Io, fn: (model: ReadModel, store: Store) => T): T {
   const home = homeDir(values, io);
-  const store = Store.open(paths(home).store);
+  const store = Store.open(paths(home).store, { redactor: loadRedactor(home) });
   try {
     return fn(new ReadModel(store, openRegistry(home).projects), store);
   } finally {
@@ -104,7 +111,8 @@ export async function serve(_args: string[], values: Values, io: Io): Promise<nu
   const host = typeof values.host === 'string' ? values.host : '127.0.0.1';
   if (!Number.isInteger(port) || port < 0 || port > 65535)
     throw new UsageError('--port must be 0–65535');
-  const store = Store.open(paths(home).store);
+  refuseRemote(host, values);
+  const store = Store.open(paths(home).store, { redactor: loadRedactor(home) });
   const server = await startServer({
     home,
     store,
@@ -178,4 +186,16 @@ export function autonomy(args: string[], values: Values, io: Io): number {
     for (const q of report.judgement_needed) io.out(`    - ${q}`);
     return 0;
   });
+}
+
+/**
+ * The local servers have no authentication, so they listen on loopback only unless the owner
+ * explicitly accepts the risk with --allow-remote (SPEC §9.3).
+ */
+export function refuseRemote(host: string, values: Values): void {
+  if (isLoopbackHost(host) || values['allow-remote'] === true) return;
+  throw new UsageError(
+    `Refusing to listen on ${host}: this server has no authentication and serves prompts and tool output. ` +
+      'Use 127.0.0.1, or pass --allow-remote to accept the risk (put it behind your own authenticating proxy).',
+  );
 }

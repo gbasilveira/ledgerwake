@@ -107,4 +107,13 @@ describe('lw project, item and serve', () => {
     );
     expect(answer).toMatchObject([{ slug: 'demo', items: 1 }]);
   });
+
+  it('refuses to listen beyond loopback without --allow-remote', async () => {
+    const { home } = setup();
+    for (const command of ['serve', 'receive']) {
+      const refused = await lw([command, '--home', home, '--host', '0.0.0.0', '--port', '0']);
+      expect(refused.code).toBe(2);
+      expect(refused.err[0]).toMatch(/Refusing to listen on 0\.0\.0\.0.*--allow-remote/);
+    }
+  });
 });

@@ -9,14 +9,21 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { hookScriptPath, mapOtelSpoolFile, withCaptureHooks } from '@ledgerwake/claude-code';
-import { type LwEvent, openRegistry, stableStringify, systemClock } from '@ledgerwake/core';
+import {
+  type LwEvent,
+  loadRedactor,
+  openRegistry,
+  stableStringify,
+  systemClock,
+} from '@ledgerwake/core';
 import { syncProjectGit } from '@ledgerwake/api';
 import { forwardSpool, reconcileTranscripts, startReceiver, Store } from '@ledgerwake/store';
 import { homeDir, type Io, message, paths, UsageError, type Values } from '../io.js';
-import { withModel } from './observe.js';
+import { refuseRemote, withModel } from './observe.js';
 
 function openStore(values: Values, io: Io): Store {
-  return Store.open(paths(homeDir(values, io)).store);
+  const home = homeDir(values, io);
+  return Store.open(paths(home).store, { redactor: loadRedactor(home) });
 }
 
 /** `lw hooks print` shows the settings; `lw hooks install --settings <file>` merges them into a file. */
@@ -172,6 +179,7 @@ export async function receive(_args: string[], values: Values, io: Io): Promise<
   const host = typeof values.host === 'string' ? values.host : '127.0.0.1';
   if (!Number.isInteger(port) || port < 0 || port > 65535)
     throw new UsageError('--port must be 0–65535');
+  refuseRemote(host, values);
   const server = await startReceiver({
     spool: paths(home).otelSpool,
     clock: systemClock,
