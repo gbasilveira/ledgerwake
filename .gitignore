@@ -6,3 +6,6 @@ dist/
 spool/
 .ledgerwake/data/
 .env
+fixtures/
+.ledgerwake/project.local.yaml
+.pnpm-store/
