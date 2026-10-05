@@ -10,6 +10,6 @@ sub-agent, MCP server and commit, grouped by project and by process.
 Status: **pre-alpha. Specification v0 in draft** — see [`SPEC.md`](SPEC.md).
 
 - CLI: `lw`
-- Dashboard (planned): *Panopticon*
+- Dashboard: planned (a web UI over the local index)
 - Licence: Apache-2.0 (see [`LICENSE`](LICENSE), [`NOTICE`](NOTICE))
 - Language: all code and documentation are written in British English.
