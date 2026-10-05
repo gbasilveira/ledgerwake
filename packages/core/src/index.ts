@@ -12,4 +12,5 @@ export * from './legacy.js';
 export * from './project.js';
 export * from './registry.js';
 export * from './store.js';
+export * from './types.js';
 export * from './ulid.js';

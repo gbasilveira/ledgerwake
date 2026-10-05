@@ -61,6 +61,7 @@ lw: 1                  # document format version
 type: wo               # a process type (section 7)
 id: 01JAZ3K9Q2M6V8X4T7B5N0C1DE
 key: WO-062            # human-facing number within the project
+type_version: 1        # version of the process type it was written under
 status: ACCEPTED
 depends_on: [WO-026b]
 branch: v3-wo-062-clock-free-tests
@@ -247,34 +248,81 @@ link.
 ## 7. Process types
 
 A process type is itself a Markdown document with frontmatter, so new types can
-be created programmatically (`lw type new`) and by hand.
+be created programmatically (`lw type new`) and by hand. The body describes the
+process in prose. The built-in types are `wo` (work order) and `decision`
+(decision record), shipped as documents (`packages/core/types/`); a project adds
+or overrides types in its types directory (`paths.types`, by default
+`.ledgerwake/types/`).
 
 ```yaml
 ---
 lw: 1
 type: process-type
-name: wo
-key_pattern: "WO-\\d{3}[a-z]?"
-states: [DRAFT, READY, IN_PROGRESS, IN_REVIEW, ACCEPTED, CHANGES_REQUESTED]
+name: wo                       # lower-case kebab-case; documents use it as `type`
+version: 1                     # the type's version
+title: Work order
+key_prefix: WO-                # keys are generated as prefix + zero-padded number
+key_width: 3
+key_pattern: "WO-\\d{3}[a-z]?"  # optional; validates keys (default: prefix + digits)
+states: [DRAFT, READY, IN_PROGRESS, DONE, PARTIAL, IN_REVIEW, CHANGES_REQUESTED, ACCEPTED, BLOCKED]
 initial: DRAFT
+final: [ACCEPTED]
 transitions:
   DRAFT: [READY]
-  READY: [IN_PROGRESS]
-  IN_PROGRESS: [IN_REVIEW]
+  READY: [IN_PROGRESS, BLOCKED]
+  IN_PROGRESS: [DONE, PARTIAL, IN_REVIEW, BLOCKED]
+  DONE: [IN_REVIEW, ACCEPTED, CHANGES_REQUESTED]
+  PARTIAL: [IN_PROGRESS, IN_REVIEW]
   IN_REVIEW: [ACCEPTED, CHANGES_REQUESTED]
   CHANGES_REQUESTED: [IN_PROGRESS]
-required_sections: [Objective, Acceptance criteria, RESULT]
+  BLOCKED: [READY, IN_PROGRESS]
+aliases:                       # other spellings, for documents that predate the type
+  IN PROGRESS: IN_PROGRESS
+  IN REVIEW: IN_REVIEW
+  CHANGES REQUESTED: CHANGES_REQUESTED
+required_sections: [Objective, Acceptance criteria]
+required_sections_by_state:
+  DONE: [RESULT]
+  PARTIAL: [RESULT]
+  IN_REVIEW: [RESULT]
+  ACCEPTED: [RESULT]
 links: [depends_on, branch]
+upcasters: []                  # see below
 ---
 ```
 
-The dashboard renders any type generically (state machine, table, timeline,
-links). A new type needs no interface code. `wo` is the first type defined this
-way and is the test of the model. Further types (decision record, phase, audit
-run, red-team round) follow.
+A definition is valid when `initial`, `final`, every transition, alias target
+and `required_sections_by_state` key name declared states; a state that cannot
+be reached from `initial` is a warning. Every item gets a `state`: its status
+mapped through the type (exactly or by an alias), or null.
+
+Checks (`lw check`) on native documents: the type exists, the key matches the
+type's key pattern, the status is a state, and the required sections (headings
+`## <name>`) exist for the document's state. For legacy items, unknown states
+and keys are warnings. Section contents are never judged (§4.2).
+
+`lw new <type> <title>` writes a native document: a new ULID from the clock,
+the next free key, the initial state, `type_version`, and the required
+sections as empty headings. It never overwrites a file.
 
 A type definition is versioned. A document records the type version it was
-written under; the reader applies upcasters.
+written under (`type_version`); when it is older, the reader applies the
+type's upcasters on read, in order, without rewriting the file:
+
+```yaml
+upcasters:
+  - from: 1                    # applies to documents written under version 1
+    rename_states: { OPEN: READY }
+    rename_fields: { deps: depends_on }
+```
+
+A document written under a newer version than the reader knows is an error.
+
+The dashboard renders any type generically (states with item counts and next
+states, item tables whose columns follow the fields present, timeline,
+links). A new type needs no interface code. Transitions are declared but not
+yet checked against history; checking them needs the status history from git
+(open question).
 
 ## 8. Projects and deployment
 
@@ -350,3 +398,6 @@ from the same inputs.
    report); rule in §5.1.
 4. Granularity and retention of `full` content at the edge.
 5. Authentication model for the central server.
+6. Checking transitions against status history (git log of the `status` field)
+   for native documents; and whether the legacy adapter should check queue
+   history the same way.

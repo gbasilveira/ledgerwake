@@ -175,7 +175,7 @@ describe('decision records', () => {
       'docs/DR-INDEX.md': '- DR-01: First choice\n- DR-03: Missing\n',
     });
     const index = buildIndex(dir, loadProjectConfig(dir));
-    expect(index.items.filter((i) => i.type === 'dr').map((i) => [i.qid, i.date])).toEqual([
+    expect(index.items.filter((i) => i.type === 'decision').map((i) => [i.qid, i.date])).toEqual([
       ['demo/DR-01', '2026-10-02'],
       ['demo/DR-02', '2026-10-03'],
     ]);

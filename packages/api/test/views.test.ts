@@ -171,7 +171,7 @@ describe('dashboard views', () => {
     expect(o).toMatchObject({
       project: 'demo',
       items: 3,
-      types: { wo: { ACCEPTED: 1, READY: 1 }, dr: { '(none)': 1 } },
+      types: { wo: { ACCEPTED: 1, READY: 1 }, decision: { '(none)': 1 } },
       phases: [
         { phase: '0', total: 1, by_status: { ACCEPTED: 1 } },
         { phase: '1', total: 1, by_status: { READY: 1 } },
@@ -181,7 +181,7 @@ describe('dashboard views', () => {
     expect(o.timeline.map((t: { kind: string; label: string }) => [t.kind, t.label])).toEqual([
       ['session', S],
       ['log', 'LAUNCH'],
-      ['dr', 'DR-01'],
+      ['decision', 'DR-01'],
     ]);
   });
 });

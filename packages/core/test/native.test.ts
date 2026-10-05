@@ -8,7 +8,7 @@ const idB = ulid(clock, (n) => new Uint8Array(n).fill(2));
 const idC = ulid(clock, (n) => new Uint8Array(n).fill(3));
 
 const doc = (id: string, key: string, extra = '') =>
-  `---\nlw: 1\ntype: wo\nid: ${id}\nkey: ${key}\nstatus: READY\ndepends_on: [WO-001]\n${extra}---\n# ${key} — Title ${key}\n`;
+  `---\nlw: 1\ntype: wo\nid: ${id}\nkey: ${key}\nstatus: READY\ndepends_on: [WO-001]\n${extra}---\n# ${key} — Title ${key}\n\n## Objective\n\n## Acceptance criteria\n`;
 
 describe('native index', () => {
   const dir = project({
@@ -24,8 +24,8 @@ describe('native index', () => {
 
   it('indexes documents by ULID with their occurrences', () => {
     expect(index.items.map((i) => [i.qid, i.id, i.title, i.status, i.depends_on])).toEqual([
-      ['demo/WO-001', idA, 'WO-001 — Title WO-001', 'READY', ['demo/WO-001']],
-      ['demo/WO-002', idB, 'WO-002 — Title WO-002', 'READY', ['demo/WO-001']],
+      ['demo/WO-001', idA, 'Title WO-001', 'READY', ['demo/WO-001']],
+      ['demo/WO-002', idB, 'Title WO-002', 'READY', ['demo/WO-001']],
     ]);
     expect(index.items[0]!.occurrences.map((o) => [o.path, o.line])).toEqual([
       ['docs/plan.md', 2],

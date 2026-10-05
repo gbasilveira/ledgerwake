@@ -16,6 +16,7 @@ export const ProjectConfigSchema = z.looseObject({
       log: z.string().default('docs/orchestration-log/LOG.md'),
       decisions: z.string().default('docs/DECISIONS.md'),
       decision_index: z.string().default('docs/DR-INDEX.md'),
+      types: z.string().default('.ledgerwake/types'),
     })
     .prefault({}),
 });

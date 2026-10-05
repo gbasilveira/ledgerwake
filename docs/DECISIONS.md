@@ -197,3 +197,22 @@ list. Revisit if interactions outgrow it (for example M8 actions).
 
 Cost of unpriced requests is shown as "—", not $0: a transcript-only request has
 tokens but no cost.
+
+## D-016 — Process types as documents; built-in `wo` follows the corpus (2026-10-05)
+
+- The SPEC §7 example had six `wo` states; VERA's format contract, the
+  reference corpus, has nine (also `DONE`, `PARTIAL`, `BLOCKED`) and spells
+  three with spaces. The built-in `wo` type has the nine, with transitions for
+  them and `aliases` for the spaced spellings, so legacy items get a `state`
+  without migration. On the VERA fixture every work-order status maps.
+- `RESULT` is required only in states where the agent has reported
+  (`required_sections_by_state`); a new or ready work order has none.
+- Key generation needs more than a pattern, so types declare `key_prefix` and
+  `key_width`; `key_pattern` stays as an optional validator (VERA's `008b`
+  suffixes).
+- Upcasters are declarative (rename states and fields), so new types still need
+  no code (ROADMAP M5).
+- The legacy decision items were renamed from type `dr` to `decision` to match
+  the built-in type (ROADMAP: "`wo` and `decision` defined as types").
+- Not done: checking transitions against history. It needs the status history
+  from git; recorded as SPEC §12 question 6.

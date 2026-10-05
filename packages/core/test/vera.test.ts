@@ -62,7 +62,7 @@ describe.skipIf(!present)('VERA fixture (M1 acceptance)', () => {
       .split('\n')
       .filter((l) => /^- DR-\d+:/.test(l))
       .map((l) => l.slice(2, l.indexOf(':')));
-    const records = index.items.filter((i) => i.type === 'dr');
+    const records = index.items.filter((i) => i.type === 'decision');
     expect(records.map((r) => r.key).sort()).toEqual([...listed].sort());
     expect(
       records.every(

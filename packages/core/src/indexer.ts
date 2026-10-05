@@ -14,6 +14,14 @@ import {
   parseWorkOrder,
 } from './legacy.js';
 import type { ProjectConfig } from './project.js';
+import {
+  keyPattern,
+  loadTypes,
+  normaliseState,
+  type ProcessType,
+  requiredSections,
+  upcast,
+} from './types.js';
 import { ulidFrom } from './ulid.js';
 
 export const INDEX_VERSION = 'index/0';
@@ -38,6 +46,8 @@ export interface Item {
   title: string | null;
   status: string | null;
   status_source: 'queue' | 'frontmatter' | 'header' | null;
+  /** `status` as a state of the item's process type (through its aliases), or null. */
+  state: string | null;
   /** Header state of a legacy work order; informative only, not canonical. */
   header_status: string | null;
   phase: string | null;
@@ -54,8 +64,21 @@ export interface ProjectIndex {
   project: string;
   adapter: ProjectConfig['adapter'];
   items: Item[];
+  /** The process types in force for this project (SPEC §7). */
+  types: TypeSummary[];
   events: LwEvent[];
   diagnostics: Diagnostic[];
+}
+
+export interface TypeSummary {
+  name: string;
+  version: number;
+  title: string | null;
+  states: string[];
+  initial: string;
+  final: string[];
+  transitions: Record<string, string[]>;
+  source: string;
 }
 
 /** Queue states in which every task marker of a work order is expected to be ticked. */
@@ -102,12 +125,48 @@ export function compareKeys(a: string, b: string): number {
  * produce the same index. Reads files only; never writes.
  */
 export function buildIndex(dir: string, config: ProjectConfig): ProjectIndex {
-  const result = config.adapter === 'legacy' ? buildLegacy(dir, config) : buildNative(dir, config);
+  const { types, problems } = loadTypes(dir, config.paths.types);
+  const result =
+    config.adapter === 'legacy' ? buildLegacy(dir, config) : buildNative(dir, config, types);
+  for (const p of problems) result.diagnostics.push(p);
+  for (const item of result.items) {
+    const type = types.get(item.type);
+    if (!type) continue;
+    item.state = normaliseState(type, item.status);
+    if (config.adapter !== 'legacy') continue;
+    const path = item.occurrences[0]?.path ?? config.paths.orchestration;
+    if (item.status !== null && item.state === null)
+      result.diagnostics.push({
+        level: 'warning',
+        code: 'unknown-state',
+        path,
+        message: `${item.key}: '${item.status}' is not a state of type ${type.name}`,
+      });
+    if (!keyPattern(type).test(item.key))
+      result.diagnostics.push({
+        level: 'warning',
+        code: 'key-pattern',
+        path,
+        message: `${item.key} does not match the key pattern of type ${type.name}`,
+      });
+  }
   return {
     lw: INDEX_VERSION,
     project: config.slug,
     adapter: config.adapter,
     items: result.items.sort((a, b) => compareKeys(a.key, b.key) || cmp(a.id, b.id)),
+    types: [...types.values()]
+      .map((t) => ({
+        name: t.name,
+        version: t.version,
+        title: t.title ?? null,
+        states: t.states,
+        initial: t.initial,
+        final: t.final,
+        transitions: t.transitions,
+        source: t.source,
+      }))
+      .sort((a, b) => cmp(a.name, b.name)),
     events: result.events.sort((a, b) => cmp(a.ts, b.ts) || cmp(a.id, b.id)),
     diagnostics: result.diagnostics.sort(compareDiagnostics),
   };
@@ -150,6 +209,7 @@ function buildLegacy(dir: string, config: ProjectConfig): Parts {
       title: row.title,
       status: row.state,
       status_source: 'queue',
+      state: null,
       header_status: null,
       phase: row.phase,
       date: null,
@@ -206,6 +266,7 @@ function buildLegacy(dir: string, config: ProjectConfig): Parts {
       title: null,
       status: workOrder.headerState,
       status_source: workOrder.headerState ? 'header' : null,
+      state: null,
       header_status: null,
       phase: workOrder.header.Fase?.value ?? null,
       date: null,
@@ -291,11 +352,12 @@ function buildLegacy(dir: string, config: ProjectConfig): Parts {
         qid: qid(record.key),
         id: derivedId(qid(record.key)),
         id_source: 'derived',
-        type: 'dr',
+        type: 'decision',
         key: record.key,
         title: record.title,
         status: null,
         status_source: null,
+        state: null,
         header_status: null,
         phase: null,
         date: record.date,
@@ -335,7 +397,7 @@ function buildLegacy(dir: string, config: ProjectConfig): Parts {
 
 // --------------------------------------------------------------------------- native
 
-function buildNative(dir: string, config: ProjectConfig): Parts {
+function buildNative(dir: string, config: ProjectConfig, types: Map<string, ProcessType>): Parts {
   const diagnostics: Diagnostic[] = [];
   const items = new Map<string, Item>();
   const embedded: { id: string; type: string; occurrence: Occurrence }[] = [];
@@ -372,7 +434,13 @@ function buildNative(dir: string, config: ProjectConfig): Parts {
       });
 
     if (!front || front.data.lw === undefined) continue;
-    const parsed = DocumentSchema.safeParse(front.data);
+    const type = typeof front.data.type === 'string' ? types.get(front.data.type) : undefined;
+    const written = typeof front.data.type_version === 'number' ? front.data.type_version : null;
+    const data =
+      type && written !== null && written < type.version
+        ? upcast(type, front.data, written)
+        : front.data;
+    const parsed = DocumentSchema.safeParse(data);
     if (!parsed.success) {
       for (const issue of parsed.error.issues)
         diagnostics.push({
@@ -385,6 +453,25 @@ function buildNative(dir: string, config: ProjectConfig): Parts {
     }
     const doc = parsed.data;
     const occurrence: Occurrence = { path, line: 1, hash: sha256Hex(text) };
+    const state = type ? normaliseState(type, doc.status ?? null) : null;
+    const problem = (code: string, message: string) =>
+      diagnostics.push({ level: 'error', code, path, message: `${doc.key}: ${message}` });
+    if (!type) problem('unknown-type', `unknown process type '${doc.type}'`);
+    else {
+      if (!keyPattern(type).test(doc.key))
+        problem('key-pattern', `key does not match type ${type.name}`);
+      if (doc.status !== undefined && state === null)
+        problem('unknown-state', `'${doc.status}' is not a state of type ${type.name}`);
+      if (written !== null && written > type.version)
+        problem(
+          'type-version',
+          `written under ${type.name} v${written}, newer than v${type.version}`,
+        );
+      const headings = new Set([...front.body.matchAll(/^##\s+(.+?)\s*$/gm)].map((m) => m[1]!));
+      for (const section of requiredSections(type, state))
+        if (!headings.has(section))
+          problem('missing-section', `required section '${section}' is missing`);
+    }
     const existing = items.get(doc.id);
     if (existing) {
       existing.occurrences.push(occurrence);
@@ -403,9 +490,18 @@ function buildNative(dir: string, config: ProjectConfig): Parts {
       id_source: 'frontmatter',
       type: doc.type,
       key: doc.key,
-      title: typeof doc.title === 'string' ? doc.title : (heading?.[1]?.trim() ?? null),
+      title:
+        typeof doc.title === 'string'
+          ? doc.title
+          : (heading?.[1]
+              ?.trim()
+              .replace(
+                new RegExp(`^${doc.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+[—–-]\\s+`),
+                '',
+              ) ?? null),
       status: doc.status ?? null,
       status_source: doc.status ? 'frontmatter' : null,
+      state,
       header_status: null,
       phase:
         typeof doc.phase === 'string' || typeof doc.phase === 'number' ? String(doc.phase) : null,
