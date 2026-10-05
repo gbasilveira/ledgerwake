@@ -201,6 +201,27 @@ export class Store {
     ).map((row) => JSON.parse(row.json) as LwEvent);
   }
 
+  /**
+   * Events inserted after local row `after`, in insertion order, for shipping to a central server.
+   * The row number is local to this store and only ever grows: events are never updated or deleted.
+   */
+  eventsAfter(
+    after: number,
+    limit: number,
+  ): { row: number; naturalKey: string | null; event: LwEvent }[] {
+    return (
+      this.db
+        .prepare(
+          'SELECT rowid AS row, natural_key, json FROM events WHERE rowid > ? ORDER BY rowid LIMIT ?',
+        )
+        .all(after, limit) as { row: number; natural_key: string | null; json: string }[]
+    ).map((r) => ({
+      row: Number(r.row),
+      naturalKey: r.natural_key,
+      event: JSON.parse(r.json) as LwEvent,
+    }));
+  }
+
   /** Events of one kind, optionally of one project, in time order. */
   eventsOfKind(kind: string, project?: string): LwEvent[] {
     const rows = (
