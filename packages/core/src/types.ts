@@ -192,6 +192,27 @@ export function isTransition(type: ProcessType, from: string, to: string): boole
   return from === to || (type.transitions[from] ?? []).includes(to);
 }
 
+/**
+ * Whether `to` can be reached from `from` through declared transitions (any number of steps). History
+ * is only as fine as the commits: a state that was never committed still happened, so a jump over it
+ * is not a violation; a move no path allows (a reopened or regressed item) is.
+ */
+export function isReachable(type: ProcessType, from: string, to: string): boolean {
+  if (from === to) return true;
+  const seen = new Set([from]);
+  const queue = [from];
+  while (queue.length > 0) {
+    for (const next of type.transitions[queue.shift()!] ?? []) {
+      if (next === to) return true;
+      if (!seen.has(next)) {
+        seen.add(next);
+        queue.push(next);
+      }
+    }
+  }
+  return false;
+}
+
 /** Sections a document of this type must have in `state`. */
 export function requiredSections(type: ProcessType, state: string | null): string[] {
   return [

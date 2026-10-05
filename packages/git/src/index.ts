@@ -203,3 +203,44 @@ export function branchMembership(root: string, labels: string[]): Map<string, Me
   }
   return membership;
 }
+
+export interface FileSnapshot {
+  sha: string;
+  /** Commit time, milliseconds since the epoch. */
+  time: number;
+  text: string;
+}
+
+/**
+ * The versions of one file along the first-parent history of HEAD, oldest first, one per commit that
+ * changed it (a commit that deleted it is skipped). First-parent keeps the integration branch's own
+ * timeline: a work-order branch carries an older copy of a shared file, and reading it would show
+ * a state going backwards when it was only a stale copy.
+ */
+export function fileSnapshots(root: string, path: string, limit = 2000): FileSnapshot[] {
+  let log: string;
+  try {
+    log = git(root, [
+      'log',
+      '--first-parent',
+      '--reverse',
+      `--max-count=${limit}`,
+      `--format=%H${US}%ct`,
+      'HEAD',
+      '--',
+      path,
+    ]);
+  } catch {
+    return [];
+  }
+  const out: FileSnapshot[] = [];
+  for (const line of lines(log)) {
+    const [sha = '', ct = '0'] = line.split(US);
+    try {
+      out.push({ sha, time: Number(ct) * 1000, text: git(root, ['show', `${sha}:${path}`]) });
+    } catch {
+      // The commit removed the file.
+    }
+  }
+  return out;
+}

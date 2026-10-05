@@ -340,3 +340,23 @@ documented in SECURITY.md).
   with `secure_delete` and pruning vacuums and truncates the log; the test reads
   the raw database and WAL files and checks the removed text is gone.
 - It reports only unless `--yes` is passed.
+
+## D-024 — Transition history is checked by reachability, on the mainline (2026-10-05)
+
+SPEC §12 question 6. Surveying VERA's real queue history before designing
+(62 snapshots of the queue): 25 changes `READY → ACCEPTED` and 17
+`IN PROGRESS → ACCEPTED`. The queue is committed at coarse moments, so a check
+that demanded every step be a declared transition would flag most of the
+history. The rule is therefore reachability: the new state must be reachable
+from the old through declared transitions. What remains is regression.
+
+The first version walked history with `--topo-order` and flagged six items,
+four of which were false: commits on work branches carry an older copy of the
+queue and showed `ACCEPTED → READY`. One flagged commit's diff did not even
+touch the item. Walking `--first-parent` leaves two real findings on VERA, both
+from one mainline commit (67e2680, 2026-10-03) that set WO-021 and WO-022 from
+`READY` back to `DRAFT` while inserting WO-020b. The regression test builds a
+merge that differs from both parents (otherwise git's own history
+simplification hides the side branch) and was shown to fail under the old walk.
+
+Opt-in (`--history`) because it runs git per file version: 0.6 s on VERA.

@@ -81,3 +81,45 @@ describe('lw type and lw new', () => {
     expect(r.err[0]).toMatch(/legacy adapter/);
   });
 });
+
+describe('lw check --history', () => {
+  it('reads status changes from git and flags a reopened native document', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const dir = nativeProject();
+    const env = {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_AUTHOR_NAME: 'P',
+      GIT_AUTHOR_EMAIL: 'p@example.org',
+      GIT_COMMITTER_NAME: 'P',
+      GIT_COMMITTER_EMAIL: 'p@example.org',
+    };
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', dir, ...args], { env, stdio: 'pipe' });
+    git('init', '-q', '-b', 'main');
+    await lw(['new', 'wo', 'First', dir]);
+    const file = join(dir, 'docs/wo/WO-001-first.md');
+    const setStatus = (status: string, message: string) => {
+      writeFileSync(file, readFileSync(file, 'utf8').replace(/^status: .*$/m, `status: ${status}`));
+      git('add', '.');
+      git('commit', '-q', '-m', message);
+    };
+    setStatus('DRAFT', 'create');
+    setStatus('READY', 'ready');
+    setStatus('IN_REVIEW', 'review');
+    setStatus('ACCEPTED', 'accept');
+    expect(
+      (await lw(['check', dir, '--history'])).out.filter((l) => l.includes('bad-transition')),
+    ).toEqual([]);
+    setStatus('DRAFT', 'reopen');
+    const flagged = (await lw(['check', dir, '--history'])).out.filter((l) =>
+      l.includes('bad-transition'),
+    );
+    expect(flagged).toHaveLength(1);
+    expect(flagged[0]).toMatch(/WO-001: ACCEPTED → DRAFT is not reachable/);
+    const plain = await lw(['check', dir]);
+    expect(plain.out.join('\n')).not.toContain('bad-transition'); // history is opt-in
+    const notGit = nativeProject();
+    expect((await lw(['check', notGit, '--history'])).code).toBe(2);
+  });
+});

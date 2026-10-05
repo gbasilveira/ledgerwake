@@ -17,6 +17,8 @@ Project documents:
   check [dir]            Check the project's documents; exit 1 on errors
     --config <file>      Project configuration (default: <dir>/.ledgerwake/project.yaml)
     --out <dir>          Where reindex writes (default: <dir>/.ledgerwake/data)
+    --history            check: also read status changes from git and flag moves that no
+                         declared transition path allows (reopened or regressed items)
 
 Process types and native documents:
   type list [dir]        Process types in force (built-in and the project's own)
@@ -112,6 +114,7 @@ export async function run(argv: string[], io: Io): Promise<number> {
         port: { type: 'string' },
         host: { type: 'string' },
         'allow-remote': { type: 'boolean', default: false },
+        history: { type: 'boolean', default: false },
         'content-older-than': { type: 'string' },
         yes: { type: 'boolean', default: false },
         name: { type: 'string' },

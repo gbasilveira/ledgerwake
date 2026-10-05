@@ -86,6 +86,9 @@ importers:
       '@ledgerwake/dashboard':
         specifier: workspace:*
         version: link:../dashboard
+      '@ledgerwake/git':
+        specifier: workspace:*
+        version: link:../git
       '@ledgerwake/store':
         specifier: workspace:*
         version: link:../store

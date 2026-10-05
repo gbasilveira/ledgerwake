@@ -6,3 +6,4 @@ export * from './views.js';
 export * from './static.js';
 export * from './alerts.js';
 export * from './autonomy.js';
+export * from './history.js';

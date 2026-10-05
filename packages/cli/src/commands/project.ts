@@ -1,10 +1,19 @@
 import { resolve } from 'node:path';
 import {
+  documentChanges,
+  fileSnapshots,
+  queueChanges,
+  transitionDiagnostics,
+} from '@ledgerwake/api';
+import { isGitRepository } from '@ledgerwake/git';
+import {
   DATA_DIR,
   type Diagnostic,
   type ProjectConfig,
   buildIndex,
+  compareDiagnostics,
   loadProjectConfig,
+  loadTypes,
   PROJECT_CONFIG_PATH,
   stableStringify,
   writeIndex,
@@ -31,7 +40,40 @@ export function formatDiagnostic(d: Diagnostic): string {
 
 export function check(args: string[], values: Values, io: Io): number {
   const dir = resolve(args[0] ?? '.');
-  const index = buildIndex(dir, load(dir, values));
+  const config = load(dir, values);
+  const index = buildIndex(dir, config);
+  if (values.history) {
+    if (!isGitRepository(dir))
+      throw new UsageError(
+        `${dir} is not a git repository; --history reads status changes from git`,
+      );
+    const { types } = loadTypes(dir, config.paths.types);
+    if (config.adapter === 'legacy') {
+      const wo = types.get('wo');
+      if (wo)
+        index.diagnostics.push(
+          ...transitionDiagnostics(
+            queueChanges(fileSnapshots(dir, config.paths.orchestration)),
+            wo,
+            config.paths.orchestration,
+          ),
+        );
+    } else {
+      for (const item of index.items) {
+        const type = types.get(item.type);
+        const path = item.occurrences[0]?.path;
+        if (type && path && item.id_source === 'frontmatter')
+          index.diagnostics.push(
+            ...transitionDiagnostics(
+              documentChanges(item.key, fileSnapshots(dir, path)),
+              type,
+              path,
+            ),
+          );
+      }
+    }
+    index.diagnostics.sort(compareDiagnostics);
+  }
   const errors = index.diagnostics.filter((d) => d.level === 'error').length;
   const warnings = index.diagnostics.length - errors;
   if (values.json) {

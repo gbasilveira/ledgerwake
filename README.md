@@ -23,7 +23,7 @@ pnpm install
 pnpm build
 pnpm test            # unit tests; VERA acceptance tests run when fixtures/vera exists
 pnpm lint
-pnpm lw check   <project-dir> [--config <file>] [--json]
+pnpm lw check   <project-dir> [--config <file>] [--json] [--history]
 pnpm lw reindex <project-dir> [--config <file>] [--out <dir>] [--json]
 ```
 

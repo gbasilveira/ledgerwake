@@ -320,9 +320,18 @@ A document written under a newer version than the reader knows is an error.
 
 The dashboard renders any type generically (states with item counts and next
 states, item tables whose columns follow the fields present, timeline,
-links). A new type needs no interface code. Transitions are declared but not
-yet checked against history; checking them needs the status history from git
-(open question).
+links). A new type needs no interface code.
+
+**History.** `lw check --history` reads how an item's status changed from git
+(for a legacy project, the history of the queue file; for native documents, of
+each document's file) along the first-parent history of the current branch, and
+warns (`bad-transition`) about a change from which the new state cannot be
+reached through the declared transitions: a reopened or regressed item.
+Skipping states is not flagged, because history is only as fine as the commits
+(a state that was never committed still happened). First-parent matters: a work
+branch carries an older copy of a shared file, and following it would show a
+state going backwards when it was only stale. The check reads git only and never
+changes a status (§4: status has a single writer).
 
 ## 8. Projects and deployment
 
@@ -453,8 +462,10 @@ from the same inputs.
 5. ~~Authentication model for the central server.~~ Answered for v0 (§8): per
    machine bearer tokens over TLS, hashed at rest, team-scoped. Open: single
    sign-on for people, and a way to rotate tokens without a restart of shippers.
-6. Checking transitions against status history (git log of the `status` field)
-   for native documents; and whether the legacy adapter should check queue
-   history the same way.
+6. ~~Checking transitions against status history.~~ Answered for v0 (§7):
+   `lw check --history` reads status changes from git. Open: a strict mode that
+   requires every step to be a declared transition (history is only as fine as
+   the commits), and what to do about moves it flags that were legitimate
+   re-planning.
 7. Alert delivery (desktop notification, e-mail, chat) and acknowledgement;
    alerts are currently computed on request only.

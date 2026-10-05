@@ -17,6 +17,7 @@
     "@ledgerwake/claude-code": "workspace:*",
     "@ledgerwake/core": "workspace:*",
     "@ledgerwake/dashboard": "workspace:*",
+    "@ledgerwake/git": "workspace:*",
     "@ledgerwake/store": "workspace:*"
   }
 }
