@@ -82,13 +82,33 @@ adapter reads the existing conventions in memory, without migration:
 
 | Fact | Where it is read from |
 |---|---|
-| id, title | file name `WO-NNN[a-z]-<slug>.md` |
-| phase, status, depends on, branch | header table rows `| Fase |`, `| Estado |`, `| Depende de |`, `| Branch |` |
-| **canonical status** | the queue row `| NNN | title | phase | STATE | agent | depends |` in the orchestration document; the header `Estado` is **not** maintained and MUST NOT be trusted |
+| key | file name `WO-NNN[a-z]-<slug>.md`, or the queue row number |
+| **canonical status**, phase, depends on, title | the queue row `| NNN | title | phase | STATE | agent | depends |` in the orchestration document |
+| branch | header table row `| Branch |` |
+| header status (informative only) | header table row `| Estado |`; it is **not** maintained and MUST NOT be trusted |
 | task progress | `[ ]` / `[x]` markers |
 | orchestration events | log lines `- <UTC time> · **<TYPE>** · <text>` |
 
-The adapter reports header/queue disagreements as warnings. A project declares
+The header rows `Fase` and `Depende de` are used only for a work order without
+a queue row: `Depende de` is prose and also names work orders that are not
+dependencies ("runs in parallel with WO-008c"). Title falls back to the first
+heading, then to the slug. States are kept verbatim (`IN PROGRESS`); mapping
+them onto a process type is left to section 7.
+
+Legacy items carry no ULID and their files are never rewritten, so the adapter
+derives one: time 0 and randomness from the SHA-256 of the qualified id. The
+index marks it `id_source: derived`. Every queue row is an item, with or
+without a file.
+
+Each log line becomes a `process.log` event (section 5). Its `id` is a ULID
+whose time is the log timestamp and whose randomness is the SHA-256 of the
+project, log path, line text and repeat count, so replaying the log twice
+yields the same events. `refs.item` is the first work order the line names;
+`data` holds `type`, `text`, `items`, `path` and `line`.
+
+The adapter reports header/queue disagreements as warnings, and queue rows
+beyond `DRAFT` without a file as warnings (some work is done directly by the
+orchestrator). A project declares
 its legacy layout in `.ledgerwake/project.yaml` (section 8). The reference
 corpus is the VERA project; its stable shapes are pinned in its own
 `docs/FORMAT-CONTRACT.md`, checked by `scripts/check-format-contract.sh`.
@@ -126,7 +146,8 @@ Every observation is one JSON object, one per line (JSON Lines).
 - `kind` is a dotted name. v0 defines: `session.start`, `session.end`,
   `prompt`, `response`, `thinking`, `tool.call`, `tool.result`, `agent.start`,
   `agent.stop`, `mcp.connect`, `skill.use`, `usage` (tokens and cost),
-  `fs.cwd_changed`, `git.commit`, `process.transition`, `error`.
+  `fs.cwd_changed`, `git.commit`, `process.transition`, `process.log` (an
+  entry of an orchestration log), `error`.
 - `content.level` is one of `metadata`, `summary`, `full`. Prompt, response,
   thinking and tool output are `full` content and are stored by reference
   (`content.ref`), never inline in the central index by default.

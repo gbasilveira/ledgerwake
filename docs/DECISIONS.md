@@ -19,3 +19,26 @@ Source: M0 spike, `docs/SPIKE-REPORT.md`.
 4. SPEC §5.1 adds the precedence for linking a session to an item
    (`LW_ITEM`, branch, working directory), answering §12 Q3. The variable name
    `LW_ITEM` is new.
+
+## D-002 — Legacy adapter reads the queue for phase and dependencies (2026-10-05)
+
+Source: implementing the legacy adapter against a read-only copy of VERA's
+`docs/` (commit `b4a257b`).
+
+1. SPEC §4.1 read phase, dependencies and title from the work-order header. In
+   VERA the header `Depende de` is prose that also names work orders which are
+   not dependencies ("A WO-008c corre em paralelo", "de preferência depois da
+   WO-037"), while the queue's depends column is a clean list (`002, 005, 006`).
+   The queue is already canonical for status, so it is now canonical for phase,
+   dependencies and title too; the header gives the branch.
+2. Legacy items get a derived ULID (time 0, SHA-256 of the qualified id) since
+   their files cannot carry one. Log events get ULIDs from the log timestamp and
+   a hash of the line, so replay is idempotent.
+3. New event kind `process.log` for orchestration log entries; none of the v0
+   kinds fitted (`process.transition` is a state change, and most entries are
+   not).
+4. A queue row beyond `DRAFT` without a file is a warning, not an error.
+   FORMAT-CONTRACT.md does not require a file, and VERA has two such rows by
+   design (WO-001, WO-015). VERA's own checker intends to fail on them but never
+   does: under `shopt -s nullglob` its `ls docs/work-orders/WO-"$id"-*.md`
+   becomes a bare `ls`. Reported to the owner; VERA is not edited from here.
