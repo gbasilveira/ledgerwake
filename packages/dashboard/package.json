@@ -1,0 +1,18 @@
+{
+  "name": "@ledgerwake/dashboard",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Read-only dashboard: static files served by lw serve. No build step.",
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "public"
+  ],
+  "scripts": {
+    "build": "node --check public/app.js",
+    "typecheck": "node --check public/app.js"
+  }
+}

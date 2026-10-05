@@ -1,6 +1,8 @@
 import { openRegistry, registerProject, stableStringify } from '@ledgerwake/core';
 import { ReadModel, serve as startServer } from '@ledgerwake/api';
 import { Store } from '@ledgerwake/store';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { homeDir, type Io, message, paths, UsageError, type Values } from '../io.js';
 
 function list(value: string | boolean | string[] | undefined): string[] {
@@ -97,15 +99,25 @@ export async function serve(_args: string[], values: Values, io: Io): Promise<nu
   if (!Number.isInteger(port) || port < 0 || port > 65535)
     throw new UsageError('--port must be 0–65535');
   const store = Store.open(paths(home).store);
-  const server = await startServer({ home, store, host, port });
+  const server = await startServer({ home, store, host, port, ...dashboardOption() });
   const address = server.address();
-  io.out(
-    `serving the read-only API on http://${host}:${typeof address === 'object' && address ? address.port : port}/api/projects`,
-  );
+  const actual = typeof address === 'object' && address ? address.port : port;
+  io.out(`serving the read-only API on http://${host}:${actual}/api/projects`);
+  if (dashboardOption().dashboard) io.out(`dashboard: http://${host}:${actual}/`);
   if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1')
     io.err('warning: listening beyond this machine; the API has no authentication yet (SPEC §9.3)');
   while (io.sleep && (await io.sleep(60_000)));
   await new Promise((resolve) => server.close(resolve));
   store.close();
   return 0;
+}
+
+/** The dashboard's static files, when the package is installed. */
+function dashboardOption(): { dashboard?: string } {
+  try {
+    const manifest = fileURLToPath(import.meta.resolve('@ledgerwake/dashboard/package.json'));
+    return { dashboard: join(dirname(manifest), 'public') };
+  } catch {
+    return {};
+  }
 }

@@ -1,0 +1,230 @@
+:root {
+  --bg: #fbfbfa;
+  --fg: #1d1d1b;
+  --muted: #6b6b66;
+  --line: #e2e1dc;
+  --panel: #ffffff;
+  --accent: #2f5d8a;
+  --ok: #2e7d4f;
+  --warn: #9a6b00;
+  --bad: #b03a2e;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615;
+    --fg: #e8e7e3;
+    --muted: #9b9a94;
+    --line: #2e2e2b;
+    --panel: #1e1e1c;
+    --accent: #8db4dc;
+    --ok: #6cc28f;
+    --warn: #e0b54a;
+    --bad: #e7796d;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    15px/1.5 system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+}
+header {
+  display: flex;
+  gap: 1.5rem;
+  align-items: baseline;
+  padding: 0.8rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  position: sticky;
+  top: 0;
+}
+.brand {
+  font-weight: 600;
+  color: var(--fg);
+  text-decoration: none;
+}
+nav a {
+  margin-right: 1rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+nav a.active,
+nav a:hover {
+  color: var(--accent);
+}
+main {
+  padding: 1.25rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+footer {
+  padding: 1.25rem;
+  text-align: center;
+  font-size: 0.85rem;
+}
+h1 {
+  font-size: 1.35rem;
+  margin: 0 0 0.25rem;
+}
+h2 {
+  font-size: 1.05rem;
+  margin: 1.75rem 0 0.6rem;
+}
+a {
+  color: var(--accent);
+}
+.muted {
+  color: var(--muted);
+}
+.mono {
+  font-family: var(--mono);
+  font-size: 0.86em;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.75rem;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.8rem 1rem;
+}
+.card .value {
+  font-size: 1.4rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.card .label {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+th,
+td {
+  text-align: left;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+th {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+tr:last-child td {
+  border-bottom: none;
+}
+.status {
+  display: inline-block;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.status.ACCEPTED,
+.status.DONE {
+  color: var(--ok);
+  border-color: currentColor;
+}
+.status.IN.PROGRESS,
+.status.IN.REVIEW,
+.status.READY {
+  color: var(--accent);
+  border-color: currentColor;
+}
+.status.BLOCKED,
+.status.CHANGES.REQUESTED {
+  color: var(--bad);
+  border-color: currentColor;
+}
+.status.PARTIAL {
+  color: var(--warn);
+  border-color: currentColor;
+}
+.bar {
+  display: flex;
+  height: 0.6rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--line);
+  min-width: 120px;
+}
+.bar span {
+  display: block;
+  height: 100%;
+}
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.5rem 0 0.75rem;
+}
+.filters button {
+  background: var(--panel);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.15rem 0.7rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+}
+.filters button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.event {
+  display: grid;
+  grid-template-columns: 7.5rem 8.5rem 1fr;
+  gap: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.event.sub {
+  padding-left: 1.75rem;
+  background: color-mix(in srgb, var(--panel) 85%, var(--accent) 4%);
+}
+.event .kind {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+details pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 24rem;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  padding: 0.6rem;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+.notice {
+  border-left: 3px solid var(--warn);
+  padding: 0.4rem 0.8rem;
+  background: var(--panel);
+}
