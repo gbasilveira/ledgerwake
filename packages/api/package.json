@@ -17,6 +17,8 @@
   "dependencies": {
     "@ledgerwake/core": "workspace:*",
     "@ledgerwake/git": "workspace:*",
-    "@ledgerwake/store": "workspace:*"
+    "@ledgerwake/store": "workspace:*",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
   }
 }

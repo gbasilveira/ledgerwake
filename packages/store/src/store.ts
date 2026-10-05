@@ -54,6 +54,7 @@ export interface UsageRow {
   output_tokens: number;
   cache_read_tokens: number;
   cache_creation_tokens: number;
+  ts: string;
 }
 
 export interface SessionSummary {
@@ -284,6 +285,7 @@ export class Store {
       output_tokens: n(r.output_tokens),
       cache_read_tokens: n(r.cache_read_tokens),
       cache_creation_tokens: n(r.cache_creation_tokens),
+      ts: String(r.ts),
     }));
   }
 
@@ -309,6 +311,36 @@ export class Store {
         name: string | null;
       }[]
     ).map((r) => ({ ...r }));
+  }
+
+  /** Per session and agent (null for the main agent): whether it started and stopped, and its last event. */
+  agentActivity(): {
+    session: string;
+    agent_id: string | null;
+    started: boolean;
+    stopped: boolean;
+    first_ts: string;
+    last_ts: string;
+  }[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT session, agent_id,
+                  max(kind IN ('agent.start', 'session.start')) AS started,
+                  max(kind IN ('agent.stop', 'session.end')) AS stopped,
+                  min(ts) AS first_ts, max(ts) AS last_ts
+             FROM events WHERE session IS NOT NULL
+            GROUP BY session, agent_id ORDER BY session, agent_id`,
+        )
+        .all() as Record<string, unknown>[]
+    ).map((r) => ({
+      session: String(r.session),
+      agent_id: (r.agent_id as string | null) ?? null,
+      started: Number(r.started) === 1,
+      stopped: Number(r.stopped) === 1,
+      first_ts: String(r.first_ts),
+      last_ts: String(r.last_ts),
+    }));
   }
 
   content(ref: string): string | null {

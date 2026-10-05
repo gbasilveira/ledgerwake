@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http';
-import { openRegistry } from '@ledgerwake/core';
+import { type Clock, openRegistry, systemClock } from '@ledgerwake/core';
+import { loadAlertConfig } from './alerts.js';
 import type { Store } from '@ledgerwake/store';
 import { handle } from './handler.js';
 import { SECURITY_HEADERS, staticFile } from './static.js';
@@ -12,6 +13,7 @@ export interface ServeOptions {
   port?: number;
   /** Directory with the dashboard's files; when absent only the API is served. */
   dashboard?: string;
+  clock?: Clock;
 }
 
 /** Starts the read-only API. Binds to 127.0.0.1 unless told otherwise (SPEC §9.3). */
@@ -26,7 +28,10 @@ export function serve(options: ServeOptions): Promise<Server> {
         response = page;
       } else {
         const model = new ReadModel(options.store, openRegistry(options.home).projects);
-        response = handle(req.method ?? 'GET', req.url ?? '/', model, options.store);
+        response = handle(req.method ?? 'GET', req.url ?? '/', model, options.store, {
+          now: (options.clock ?? systemClock).now(),
+          alerts: loadAlertConfig(options.home),
+        });
       }
     } catch (error) {
       response = {

@@ -216,3 +216,36 @@ tokens but no cost.
   the built-in type (ROADMAP: "`wo` and `decision` defined as types").
 - Not done: checking transitions against history. It needs the status history
   from git; recorded as SPEC §12 question 6.
+
+## D-017 — Alert rules and the autonomy report (2026-10-05)
+
+Alerts are rules evaluated on request (`lw alerts`, `/api/alerts`) against the
+read model and an injected clock; thresholds and budgets live in
+`$LW_HOME/alerts.yaml`; nothing is sent anywhere yet (notification channels are
+an open question). Rules and their semantics:
+
+- `stalled-agent`: a sub-agent started, never stopped, quiet for
+  `stalled_agent_minutes` (30), and the main agent has not acted since. The last
+  condition was added after the first run on real data: transcripts record a
+  sub-agent's start but not its stop, so transcript-only sessions raised two
+  false alerts; once the main agent acts after a foreground sub-agent's last
+  event, the sub-agent has finished.
+- `rate-limit`: API errors with HTTP 429 (from OpenTelemetry) within
+  `recent_hours` (24). Critical.
+- `hook-failure`: capture hooks that failed or were cancelled (from transcripts);
+  the reconciler fills the gaps, so a warning.
+- `stalled-item`: an item in an in-progress state with no linked commit for
+  `stalled_item_hours` (24), measured from its last linked commit or, without
+  one, from when work started (first launch in the log or first linked session).
+  The first version alerted on any in-progress item without commits regardless
+  of age; corrected before commit.
+- `budget`: today's (UTC) cost, a session's or an item's above the configured
+  limit. Only priced (OpenTelemetry) requests count.
+- `document-errors`: `lw check` errors in a registered project.
+
+The autonomy report computes evidence from the log, documents, sessions,
+commits and cost (launches, relaunches, changes requested, first-pass
+acceptance, RESULT present and with figures, tasks ticked) and lists the
+questions that need human judgement (VERA's AUTONOMY-EVAL H1–H3, C6). It does
+not decide. On VERA: 42 of 45 work orders accepted, 9 with launches in the log,
+first-pass 56 %, RESULT present 98 %, tasks fully ticked 39 %.

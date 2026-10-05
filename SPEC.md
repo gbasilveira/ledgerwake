@@ -401,3 +401,5 @@ from the same inputs.
 6. Checking transitions against status history (git log of the `status` field)
    for native documents; and whether the legacy adapter should check queue
    history the same way.
+7. Alert delivery (desktop notification, e-mail, chat) and acknowledgement;
+   alerts are currently computed on request only.

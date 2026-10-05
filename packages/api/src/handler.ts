@@ -2,6 +2,8 @@ import { stableStringify } from '@ledgerwake/core';
 import type { Store } from '@ledgerwake/store';
 import type { ReadModel } from './readmodel.js';
 import { costView, overviewView, toolsView } from './views.js';
+import { type AlertConfig, alerts } from './alerts.js';
+import { autonomyReport } from './autonomy.js';
 
 export interface Response {
   status: number;
@@ -29,9 +31,22 @@ const notFound = (what: string) => json({ error: `${what} not found` }, 404);
  *   GET /api/projects/<slug>/overview     items by type and status, phases, timeline
  *   GET /api/cost[?project=&item=&session=]   cost and tokens by model, agent, session, item
  *   GET /api/tools[?project=&item=&session=]  tool calls, MCP servers, skills
+ *   GET /api/alerts                       alert rules evaluated now
+ *   GET /api/projects/<slug>/autonomy     evidence for an autonomy evaluation
  * `model` is built per request, so every answer reflects the current files and store.
  */
-export function handle(method: string, url: string, model: ReadModel, store: Store): Response {
+export interface HandlerContext {
+  now: number;
+  alerts: AlertConfig;
+}
+
+export function handle(
+  method: string,
+  url: string,
+  model: ReadModel,
+  store: Store,
+  context?: HandlerContext,
+): Response {
   if (method !== 'GET' && method !== 'HEAD') return json({ error: 'read-only API' }, 405);
   const parsed = new URL(url, 'http://localhost');
   const parts = parsed.pathname.split('/').filter(Boolean).map(decodeURIComponent);
@@ -56,6 +71,10 @@ export function handle(method: string, url: string, model: ReadModel, store: Sto
             };
           }),
         );
+      }
+      if (rest[1] === 'autonomy') {
+        const report = autonomyReport(model, rest[0]!);
+        return report ? json(report) : notFound('project');
       }
       if (rest[1] === 'overview') {
         const overview = overviewView(model, rest[0]!);
@@ -83,6 +102,8 @@ export function handle(method: string, url: string, model: ReadModel, store: Sto
       const found = model.item(rest.join('/'));
       return found ? json(found) : notFound('item');
     }
+    case 'alerts':
+      return context ? json(alerts(model, context.alerts, context.now)) : notFound('route');
     case 'cost':
       return json(costView(model, filter(q)));
     case 'tools':

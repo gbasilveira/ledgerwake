@@ -11,7 +11,9 @@ commit message); M3 done (`lw project`, git commits and links in
 M4 done (decision records, `lw receive` for cost, API views, dashboard at
 `lw serve`); M5 done (process-type documents, built-in `wo` and `decision`,
 `lw type new|list`, `lw new`, type checks in `lw check`; transitions are not
-yet checked against history).
+yet checked against history); M6 done (`lw alerts` with stalled agents and items,
+rate limits, failed hooks, budgets and document errors; `lw autonomy`; both in
+the dashboard).
 
 ## M0 — Spike (answers SPEC §12 questions 2 and 3)
 Follow the checklist in `RESEARCH.md`. Output: `docs/SPIKE-REPORT.md` with

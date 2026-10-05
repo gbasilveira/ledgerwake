@@ -201,6 +201,14 @@ export class ReadModel {
     return this.store.tools();
   }
 
+  agentActivity() {
+    return this.store.agentActivity();
+  }
+
+  errors() {
+    return [...this.store.eventsOfKind('error'), ...this.store.eventsOfKind('hook.error')];
+  }
+
   item(qid: string): { item: Item; sessions: SessionView[]; commits: CommitView[] } | null {
     const slug = qid.split('/')[0]!;
     const item = this.index(slug)?.items.find((i) => i.qid === qid);
