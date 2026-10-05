@@ -9,7 +9,9 @@ Status (2026-10-05): M0 done (`docs/SPIKE-REPORT.md`); M1 done (`lw reindex`,
 commit message); M3 done (`lw project`, git commits and links in
 `lw reconcile`, `lw item`, `lw serve`; acceptance in the M3 commit message);
 M4 done (decision records, `lw receive` for cost, API views, dashboard at
-`lw serve`).
+`lw serve`); M5 done (process-type documents, built-in `wo` and `decision`,
+`lw type new|list`, `lw new`, type checks in `lw check`; transitions are not
+yet checked against history).
 
 ## M0 — Spike (answers SPEC §12 questions 2 and 3)
 Follow the checklist in `RESEARCH.md`. Output: `docs/SPIKE-REPORT.md` with

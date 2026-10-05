@@ -44,6 +44,8 @@ const itemLink = (qid) => h('a', { href: itemHref(qid) }, qid);
 const status = (s) =>
   s ? h('span', { class: `status ${s}` }, s) : h('span', { class: 'muted' }, '—');
 const usd = (n) => (n === null || n === undefined ? '—' : `$${n.toFixed(n < 1 ? 4 : 2)}`);
+/** Total cost, or a dash when no request was priced (cost needs OpenTelemetry). */
+const totalCost = (t) => (t.requests === t.unpriced ? '—' : usd(t.cost_usd));
 const int = (n) => Number(n ?? 0).toLocaleString('en-GB');
 const when = (ts) => (ts ? ts.replace('T', ' ').replace(/\.\d+Z$/, 'Z') : '—');
 const card = (label, value) =>
@@ -98,7 +100,8 @@ function statusBar(byStatus) {
 }
 function statusColour(s, i) {
   if (s === 'ACCEPTED' || s === 'DONE') return 'var(--ok)';
-  if (s === 'READY' || s === 'IN PROGRESS' || s === 'IN REVIEW') return 'var(--accent)';
+  if (['READY', 'IN PROGRESS', 'IN REVIEW', 'IN_PROGRESS', 'IN_REVIEW'].includes(s))
+    return 'var(--accent)';
   if (s === 'BLOCKED' || s === 'CHANGES REQUESTED') return 'var(--bad)';
   if (s === 'PARTIAL') return 'var(--warn)';
   if (s === 'DRAFT' || s === '(none)') return 'var(--line)';
@@ -132,7 +135,7 @@ async function projectsView() {
       card('projects', int(projects.length)),
       card('items', int(projects.reduce((a, p) => a + p.items, 0))),
       card('API requests', int(cost.total.requests)),
-      card('cost (priced requests)', usd(cost.total.cost_usd)),
+      card('cost (priced requests)', totalCost(cost.total)),
     ),
     h('h2', {}, 'Registered projects'),
     table(
@@ -260,7 +263,7 @@ async function projectView(slug) {
         card(`${t} items`, int(Object.values(m).reduce((a, b) => a + b, 0))),
       ),
       card('sessions', int(o.sessions)),
-      card('cost', usd(cost.total.cost_usd)),
+      card('cost', totalCost(cost.total)),
     ),
     o.phases.length
       ? [
@@ -282,11 +285,63 @@ async function projectView(slug) {
           ),
         ]
       : null,
+    h('h2', {}, 'Process types'),
+    typeTable(index),
     h('h2', {}, 'Items'),
     itemsBox,
     h('h2', {}, 'Timeline'),
     timelineBox,
   ];
+}
+
+/** Each type's state machine, generically: states in order, items in each, allowed next states. */
+function typeTable(index) {
+  const used = index.types.filter((t) => index.items.some((i) => i.type === t.name));
+  return used.map((t) => {
+    const items = index.items.filter((i) => i.type === t.name);
+    const unmapped = items.filter((i) => i.status !== null && i.state === null).length;
+    return [
+      h(
+        'p',
+        {},
+        h('strong', {}, t.title ?? t.name),
+        h('span', { class: 'muted' }, ` · ${t.name} v${t.version} · ${t.source}`),
+      ),
+      table(
+        [
+          {
+            label: 'State',
+            value: (s) => [
+              status(s),
+              s === t.initial ? h('span', { class: 'muted' }, ' initial') : null,
+              t.final.includes(s) ? h('span', { class: 'muted' }, ' final') : null,
+            ],
+          },
+          {
+            label: 'Items',
+            num: true,
+            value: (s) => int(items.filter((i) => i.state === s).length),
+          },
+          { label: 'Next', value: (s) => (t.transitions[s] ?? []).join(', ') || '—' },
+        ],
+        t.states,
+      ),
+      unmapped
+        ? h(
+            'p',
+            { class: 'notice' },
+            `${unmapped} item(s) have a status that is not a state of this type.`,
+          )
+        : null,
+      items.some((i) => i.status === null)
+        ? h(
+            'p',
+            { class: 'muted' },
+            `${items.filter((i) => i.status === null).length} item(s) without a status.`,
+          )
+        : null,
+    ];
+  });
 }
 
 async function itemView(qid) {
@@ -299,6 +354,7 @@ async function itemView(qid) {
   const fields = [
     ['Type', item.type],
     ['Status', status(item.status)],
+    item.state && item.state !== item.status ? ['State (type)', item.state] : null,
     item.header_status && item.header_status !== item.status
       ? ['Header status (not canonical)', item.header_status]
       : null,
@@ -332,7 +388,7 @@ async function itemView(qid) {
       { class: 'cards', style: 'margin-top:1rem' },
       card('sessions', int(sessions.length)),
       card('commits', int(commits.length)),
-      card('cost', usd(cost.total.cost_usd)),
+      card('cost', totalCost(cost.total)),
       card('API requests', int(cost.total.requests)),
     ),
     h('h2', {}, 'Sessions'),
@@ -486,7 +542,7 @@ async function sessionView(id) {
       card('prompts', int(session.prompts)),
       card('tool calls', int(session.tool_calls)),
       card('sub-agents', int(session.agents)),
-      card('cost', usd(cost.total.cost_usd)),
+      card('cost', totalCost(cost.total)),
     ),
     session.links.length
       ? h(
@@ -533,7 +589,7 @@ async function costView(query) {
     h(
       'div',
       { class: 'cards' },
-      card('cost', usd(cost.total.cost_usd)),
+      card('cost', totalCost(cost.total)),
       card('requests', int(cost.total.requests)),
       card('unpriced', int(cost.total.unpriced)),
       card('output tokens', int(cost.total.output_tokens)),
