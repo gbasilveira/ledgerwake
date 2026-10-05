@@ -114,6 +114,7 @@ function setNav(active) {
     ['#/sessions', 'Sessions'],
     ['#/cost', 'Cost'],
     ['#/tools', 'Tools'],
+    ['#/alerts', 'Alerts'],
   ];
   nav.replaceChildren(
     ...links.map(([href, label]) =>
@@ -155,10 +156,11 @@ async function projectsView() {
 
 async function projectView(slug) {
   setNav('');
-  const [o, index, cost] = await Promise.all([
+  const [o, index, cost, autonomy] = await Promise.all([
     api(`projects/${enc(slug)}/overview`),
     api(`projects/${enc(slug)}`),
     api(`cost?project=${enc(slug)}`),
+    api(`projects/${enc(slug)}/autonomy`),
   ]);
   const types = Object.keys(o.types);
   let typeFilter = types.includes('wo') ? 'wo' : types[0];
@@ -285,6 +287,7 @@ async function projectView(slug) {
           ),
         ]
       : null,
+    autonomy.rows.length ? autonomySection(autonomy) : null,
     h('h2', {}, 'Process types'),
     typeTable(index),
     h('h2', {}, 'Items'),
@@ -637,6 +640,95 @@ async function toolsView(query) {
   ];
 }
 
+async function alertsView() {
+  setNav('#/alerts');
+  const list = await api('alerts');
+  return [
+    h('h1', {}, 'Alerts'),
+    h(
+      'p',
+      { class: 'muted' },
+      'Rules evaluated now; thresholds and budgets in $LW_HOME/alerts.yaml. Nothing is sent anywhere.',
+    ),
+    table(
+      [
+        {
+          label: 'Severity',
+          value: (a) =>
+            h(
+              'span',
+              { class: `status ${a.severity === 'critical' ? 'BLOCKED' : 'PARTIAL'}` },
+              a.severity,
+            ),
+        },
+        { label: 'Rule', value: (a) => a.rule },
+        {
+          label: 'Subject',
+          value: (a) =>
+            /^[a-z0-9-]+\/[A-Z]+-\d/.test(a.subject)
+              ? itemLink(a.subject)
+              : /^[0-9a-f]{8}-/.test(a.subject)
+                ? h('a', { href: sessionHref(a.subject.split('/')[0]), class: 'mono' }, a.subject)
+                : a.subject,
+        },
+        { label: 'Message', value: (a) => a.message },
+        { label: 'Since', value: (a) => h('span', { class: 'mono' }, when(a.since)) },
+      ],
+      list,
+      'No alerts.',
+    ),
+  ];
+}
+
+function autonomySection(report) {
+  const s = report.summary;
+  const pct = (r) => (r === null ? '—' : `${Math.round(r * 100)}%`);
+  const yes = (b) => (b === null ? '—' : b ? 'yes' : 'no');
+  return [
+    h('h2', {}, 'Autonomy evidence'),
+    h(
+      'div',
+      { class: 'cards' },
+      card('accepted at first pass', pct(s.first_pass_rate)),
+      card('relaunches', int(s.relaunches)),
+      card('user interventions (log)', int(s.user_interventions)),
+      card('RESULT present', pct(s.result_section_rate)),
+      card('tasks fully ticked', pct(s.tasks_fully_ticked_rate)),
+    ),
+    h(
+      'p',
+      { class: 'notice' },
+      'Evidence only. Still needs human judgement: ',
+      report.judgement_needed.join(' '),
+    ),
+    h(
+      'details',
+      {},
+      h('summary', {}, `Per work order (${report.rows.length})`),
+      table(
+        [
+          { label: 'Item', value: (r) => itemLink(r.item) },
+          { label: 'State', value: (r) => status(r.state) },
+          { label: 'Launches', num: true, value: (r) => int(r.launches) },
+          { label: 'Relaunches', num: true, value: (r) => int(r.relaunches) },
+          { label: 'Changes requested', value: (r) => yes(r.changes_requested) },
+          { label: 'First pass', value: (r) => yes(r.first_pass) },
+          { label: 'RESULT', value: (r) => yes(r.result_section) },
+          { label: 'Figures', value: (r) => yes(r.result_has_figures) },
+          {
+            label: 'Tasks',
+            num: true,
+            value: (r) => (r.tasks ? `${r.tasks.done}/${r.tasks.total}` : ''),
+          },
+          { label: 'Commits', num: true, value: (r) => int(r.commits) },
+          { label: 'Cost', num: true, value: (r) => (r.cost_usd ? usd(r.cost_usd) : '—') },
+        ],
+        report.rows,
+      ),
+    ),
+  ];
+}
+
 // ----------------------------------------------------------------------------- router
 
 async function route() {
@@ -654,6 +746,7 @@ async function route() {
     else if (parts[0] === 'session' && parts[1]) view = await sessionView(parts[1]);
     else if (parts[0] === 'cost') view = await costView(query);
     else if (parts[0] === 'tools') view = await toolsView(query);
+    else if (parts[0] === 'alerts') view = await alertsView();
     else view = [h('h1', {}, 'Not found'), h('p', {}, h('a', { href: '#/' }, 'Back to projects'))];
     fill(main, view);
     window.scrollTo(0, 0);
