@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import { events, forward, hooks, reconcile, sessions } from './commands/capture.js';
+import { item, project, serve } from './commands/observe.js';
 import { check, reindex } from './commands/project.js';
 import { type Io, message, UsageError, type Values } from './io.js';
 
@@ -14,6 +15,11 @@ Project documents:
     --config <file>      Project configuration (default: <dir>/.ledgerwake/project.yaml)
     --out <dir>          Where reindex writes (default: <dir>/.ledgerwake/data)
 
+Projects observed by this installation:
+  project add <root>     Register a project (its .ledgerwake/project.yaml, or --config)
+    --worktrees <dir>    A directory holding the project's worktrees (repeatable)
+  project list           List registered projects
+
 Capture (Claude Code):
   hooks print            Print the hook settings that install the capture hook
   hooks install          Install the hook script and merge its settings into a file
@@ -21,10 +27,15 @@ Capture (Claude Code):
     --hook <command>     Use this hook command instead of installing the script
   forward                Move spooled hook events into the local store
     --watch              Keep running; --interval <ms> between passes (default 1000)
-  reconcile              Import transcripts: backfill and fill gaps left by hooks
+  reconcile              Import transcripts (backfill, gap filling) and the commits
+                         of registered projects
     --projects <dir>     Transcript directory (default: ~/.claude/projects)
   sessions               List captured sessions
   events <session>       Show the events of a session
+
+Read:
+  item <project>/<key>   An item with its linked sessions and commits
+  serve                  Read-only local API (--port, default 8754; --host, default 127.0.0.1)
 
 Common options:
   --home <dir>           Local installation (default: $LW_HOME or ~/.ledgerwake)
@@ -36,11 +47,14 @@ type Command = (args: string[], values: Values, io: Io) => number | Promise<numb
 const COMMANDS: Record<string, Command> = {
   reindex,
   check,
+  project,
   hooks,
   forward,
   reconcile,
   sessions,
   events,
+  item,
+  serve,
 };
 
 /** Runs the CLI. Exit codes: 0 success, 1 check found errors (or no events), 2 usage or configuration error. */
@@ -58,6 +72,9 @@ export async function run(argv: string[], io: Io): Promise<number> {
         hook: { type: 'string' },
         projects: { type: 'string' },
         interval: { type: 'string' },
+        worktrees: { type: 'string', multiple: true },
+        port: { type: 'string' },
+        host: { type: 'string' },
         watch: { type: 'boolean', default: false },
         json: { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false },

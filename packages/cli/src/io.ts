@@ -10,7 +10,7 @@ export interface Io {
   sleep?(ms: number): Promise<boolean>;
 }
 
-export type Values = Record<string, string | boolean | undefined>;
+export type Values = Record<string, string | boolean | string[] | undefined>;
 
 /** Raised for usage and configuration errors (exit status 2). */
 export class UsageError extends Error {}

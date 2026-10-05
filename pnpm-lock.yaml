@@ -27,6 +27,18 @@ importers:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@22.20.5)(vite@8.3.2(@types/node@22.20.5)(yaml@2.9.1))
 
+  packages/api:
+    dependencies:
+      '@ledgerwake/core':
+        specifier: workspace:*
+        version: link:../core
+      '@ledgerwake/git':
+        specifier: workspace:*
+        version: link:../git
+      '@ledgerwake/store':
+        specifier: workspace:*
+        version: link:../store
+
   packages/claude-code:
     dependencies:
       '@ledgerwake/core':
@@ -35,6 +47,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@ledgerwake/api':
+        specifier: workspace:*
+        version: link:../api
       '@ledgerwake/claude-code':
         specifier: workspace:*
         version: link:../claude-code
@@ -53,6 +68,12 @@ importers:
       zod:
         specifier: ^4.6.5
         version: 4.6.5
+
+  packages/git:
+    dependencies:
+      '@ledgerwake/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/store:
     dependencies:

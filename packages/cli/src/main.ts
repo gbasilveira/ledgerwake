@@ -1,6 +1,14 @@
 #!/usr/bin/env -S node --disable-warning=ExperimentalWarning
 import { run } from './run.js';
 
+// A closed pipe (`lw … | head`) is not an error.
+for (const stream of [process.stdout, process.stderr]) {
+  stream.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EPIPE') process.exit(process.exitCode ?? 0);
+    throw error;
+  });
+}
+
 let stopping = false;
 let wake: (() => void) | null = null;
 const stop = () => {

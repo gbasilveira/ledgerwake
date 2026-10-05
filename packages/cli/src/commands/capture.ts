@@ -9,9 +9,11 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { hookScriptPath, withCaptureHooks } from '@ledgerwake/claude-code';
-import { type LwEvent, stableStringify } from '@ledgerwake/core';
+import { type LwEvent, openRegistry, stableStringify } from '@ledgerwake/core';
+import { syncProjectGit } from '@ledgerwake/api';
 import { forwardSpool, reconcileTranscripts, Store } from '@ledgerwake/store';
 import { homeDir, type Io, message, paths, UsageError, type Values } from '../io.js';
+import { withModel } from './observe.js';
 
 function openStore(values: Values, io: Io): Store {
   return Store.open(paths(homeDir(values, io)).store);
@@ -84,7 +86,15 @@ export function reconcile(_args: string[], values: Values, io: Io): number {
   const store = openStore(values, io);
   try {
     const r = reconcileTranscripts(projects, store);
-    if (values.json) io.out(stableStringify(r));
+    const git = openRegistry(homeDir(values, io)).projects.map((p) => {
+      try {
+        return syncProjectGit(p, store);
+      } catch (error) {
+        io.err(`git: ${p.config.slug}: ${message(error)}`);
+        return null;
+      }
+    });
+    if (values.json) io.out(stableStringify({ ...r, git: git.filter(Boolean) }));
     else {
       io.out(
         `${r.files} transcript(s), ${r.changed} changed: ${r.inserted} new event(s), ${r.duplicates} already present`,
@@ -92,6 +102,11 @@ export function reconcile(_args: string[], values: Values, io: Io): number {
       io.out(
         `${r.stats.entries} entries, ${r.stats.invalid} invalid, ${r.stats.unsupported} of unsupported versions`,
       );
+      for (const g of git)
+        if (g)
+          io.out(
+            `git ${g.project}: ${g.commits} commit(s), ${g.inserted} new, ${g.linked} linked to items`,
+          );
     }
     return 0;
   } finally {
@@ -100,19 +115,18 @@ export function reconcile(_args: string[], values: Values, io: Io): number {
 }
 
 export function sessions(_args: string[], values: Values, io: Io): number {
-  const store = openStore(values, io);
-  try {
-    const list = store.sessions();
+  return withModel(values, io, (model) => {
+    const list = model.sessions();
     if (values.json) io.out(stableStringify(list));
     else
-      for (const s of list)
+      for (const s of list) {
+        const links = s.links.map((l) => `${l.item} (${l.rule})`).join(', ');
         io.out(
-          `${s.session}  ${s.first_ts}  ${s.cwd ?? '-'}  prompts=${s.prompts} tools=${s.tool_calls} agents=${s.agents} events=${s.events} [${s.channels.join(',')}]${s.items.length ? ` ${s.items.join(',')}` : ''}`,
+          `${s.session}  ${s.first_ts}  ${s.project ?? '-'}  ${s.cwd ?? '-'}  prompts=${s.prompts} tools=${s.tool_calls} agents=${s.agents} events=${s.events}${links ? `  → ${links}` : ''}`,
         );
+      }
     return 0;
-  } finally {
-    store.close();
-  }
+  });
 }
 
 function summary(e: LwEvent): string {

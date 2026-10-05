@@ -6,7 +6,8 @@ by report.
 Status (2026-10-05): M0 done (`docs/SPIKE-REPORT.md`); M1 done (`lw reindex`,
 `lw check`, VERA fixture tests); M2 done (`lw hooks`, `lw forward`,
 `lw reconcile`, `lw sessions`, `lw events`; acceptance commands in the M2
-commit message).
+commit message); M3 done (`lw project`, git commits and links in
+`lw reconcile`, `lw item`, `lw serve`; acceptance in the M3 commit message).
 
 ## M0 — Spike (answers SPEC §12 questions 2 and 3)
 Follow the checklist in `RESEARCH.md`. Output: `docs/SPIKE-REPORT.md` with

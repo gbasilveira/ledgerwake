@@ -51,3 +51,13 @@ pnpm lw events <session>
 
 The hook only writes a private file to the local spool and exits; it never
 contacts a server and never fails the agent.
+
+### Projects and the read API
+
+```sh
+pnpm lw project add <repo> [--config <file>] [--worktrees <dir>]   # register a project to observe
+pnpm lw reconcile                # also imports its commits and links them to items
+pnpm lw sessions                 # sessions with project and item links
+pnpm lw item <project>/<key>     # an item with its sessions and commits
+pnpm lw serve                    # read-only JSON API on http://127.0.0.1:8754/api/projects
+```

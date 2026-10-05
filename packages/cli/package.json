@@ -12,6 +12,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@ledgerwake/api": "workspace:*",
     "@ledgerwake/claude-code": "workspace:*",
     "@ledgerwake/core": "workspace:*",
     "@ledgerwake/store": "workspace:*"
