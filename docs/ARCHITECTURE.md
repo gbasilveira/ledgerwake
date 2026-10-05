@@ -40,7 +40,8 @@
 - TypeScript on Node 22, pnpm workspaces (matches the owner's other projects).
 - SQLite via Node's built-in `node:sqlite` (no native build; see D-006);
   PostgreSQL central. `zod` for schemas.
-- Dashboard: a small React or Svelte app served by the local API.
+- Dashboard: static HTML, CSS and ES-module JavaScript served by the local API;
+  no framework and no build step (D-015).
 - Tests: `vitest`; golden tests against the VERA corpus (read-only fixture copy,
   never the live repository).
 

@@ -61,3 +61,13 @@ pnpm lw sessions                 # sessions with project and item links
 pnpm lw item <project>/<key>     # an item with its sessions and commits
 pnpm lw serve                    # read-only JSON API on http://127.0.0.1:8754/api/projects
 ```
+
+### Cost and the dashboard
+
+```sh
+pnpm lw receive                  # OTLP/JSON on 127.0.0.1:4318; prints the variables for Claude Code
+pnpm lw serve                    # dashboard on http://127.0.0.1:8754/
+```
+
+Cost comes from Claude Code's OpenTelemetry (`api_request`); without it,
+requests have tokens (from transcripts) but no cost.

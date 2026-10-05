@@ -183,3 +183,17 @@ disposable. The forwarder removes spool files after committing them, so hook
 and telemetry events then exist only in the store's `events` table, which is
 the local event log. Only its other tables (commit links) are read models. SPEC
 §8 now says so.
+
+## D-015 — Dashboard without a framework (2026-10-05)
+
+ARCHITECTURE proposed "a small React or Svelte app". The dashboard is instead
+about 600 lines of plain ES-module JavaScript with one `h()` helper, served as
+three static files: no build step, no dependencies, nothing to audit or update,
+and the CLI stays installable offline. It renders any process type generically
+(columns appear when items of a type carry the field). Safety rule, enforced
+by a test: API data is only inserted as text (no `innerHTML`, `eval`,
+`javascript:` URLs), and pages are served with a strict CSP from a fixed file
+list. Revisit if interactions outgrow it (for example M8 actions).
+
+Cost of unpriced requests is shown as "—", not $0: a transcript-only request has
+tokens but no cost.
