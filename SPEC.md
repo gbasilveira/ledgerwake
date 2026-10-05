@@ -444,7 +444,12 @@ from the same inputs.
    not be induced.
 3. ~~How a session is linked to an item.~~ Answered by the spike (§6 of the
    report); rule in §5.1.
-4. Granularity and retention of `full` content at the edge.
+4. ~~Granularity and retention of `full` content at the edge.~~ Retention is
+   answered for v0: `lw prune --content-older-than <age>` deletes stored full
+   content that no event newer than the cutoff refers to, overwrites it
+   (`secure_delete`) and compacts the file; events, cost and metadata are kept.
+   It reports only unless `--yes` is given. Open: granularity (for example per
+   project or per tool), and an automatic schedule.
 5. ~~Authentication model for the central server.~~ Answered for v0 (§8): per
    machine bearer tokens over TLS, hashed at rest, team-scoped. Open: single
    sign-on for people, and a way to rotate tokens without a restart of shippers.

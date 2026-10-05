@@ -66,12 +66,23 @@ it on a private network.
   `lw forward` stores it. Run the forwarder continuously.
 - **Transcripts.** Claude Code's own transcripts contain the same content.
   `lw reconcile` redacts what it imports; it does not touch the originals.
+- **Retention.** Full content stays in the local store until you run
+  `lw prune --content-older-than <age> --yes`; it is overwritten and the file
+  compacted. Nothing prunes automatically. The central server never holds
+  content.
 - **Existing stores.** A store built before redaction existed may hold
   unredacted content. There is no scrub command yet; delete such a store and
   rebuild it from the spool and transcripts.
 - **`node:sqlite` is experimental** in Node 22 (D-006).
 - **No authentication** on the local servers. Do not publish them; if you must,
   use `--allow-remote` behind your own authenticating proxy.
+
+## Checking an installation
+
+`lw status` checks the points above on a real installation: private home and
+store, a current hook, raw payloads waiting in the spool (and for how long),
+files the forwarder could not read, token file permissions. It exits 1 when
+something needs attention, so it can run from cron.
 
 ## Reporting
 

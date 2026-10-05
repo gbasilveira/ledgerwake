@@ -40,6 +40,15 @@ CREATE TABLE IF NOT EXISTS commit_links (
 );
 `;
 
+/** Content no event dated at or after `?` still refers to (bind the cutoff twice). */
+const UNREFERENCED_SINCE = `ref NOT IN (
+  SELECT json_extract(json, '$.content.ref') FROM events
+   WHERE ts >= ? AND json_extract(json, '$.content.ref') IS NOT NULL
+  UNION
+  SELECT je.value FROM events e, json_each(json_extract(e.json, '$.data.content_refs')) je
+   WHERE e.ts >= ? AND je.value IS NOT NULL
+)`;
+
 export interface InsertResult {
   inserted: number;
   duplicates: number;
@@ -116,7 +125,10 @@ export class Store {
     }
     const db = new DatabaseSync(path);
     if (path !== ':memory:') chmodSync(path, 0o600);
-    db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA busy_timeout = 5000;');
+    // secure_delete overwrites deleted content, so pruning really removes it from the file.
+    db.exec(
+      'PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL; PRAGMA busy_timeout = 5000; PRAGMA secure_delete = ON;',
+    );
     db.exec(SCHEMA);
     migrate(db);
     return new Store(db, options.redactor ?? defaultRedactor);
@@ -248,6 +260,29 @@ export class Store {
     return new Map(
       rows.map((r) => [r.session, { cwds: list(r.cwds), branches: list(r.branches) }]),
     );
+  }
+
+  /**
+   * Full content (prompts, responses, tool input and output) kept only by events older than
+   * `cutoffTs` (an ISO time). The events stay; their `content.ref` then points at nothing.
+   */
+  prunableContent(cutoffTs: string): { bodies: number; bytes: number } {
+    const row = this.db
+      .prepare(
+        `SELECT count(*) AS n, coalesce(sum(length(body)), 0) AS bytes FROM content WHERE ${UNREFERENCED_SINCE}`,
+      )
+      .get(cutoffTs, cutoffTs) as { n: number; bytes: number };
+    return { bodies: Number(row.n), bytes: Number(row.bytes) };
+  }
+
+  /** Deletes that content, overwrites it and compacts the file. Returns what was removed. */
+  pruneContent(cutoffTs: string): { bodies: number; bytes: number } {
+    const removed = this.prunableContent(cutoffTs);
+    this.transaction(() => {
+      this.db.prepare(`DELETE FROM content WHERE ${UNREFERENCED_SINCE}`).run(cutoffTs, cutoffTs);
+    });
+    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE); VACUUM; PRAGMA wal_checkpoint(TRUNCATE);');
+    return removed;
   }
 
   /** Replaces the commit ↔ item links of one project. */

@@ -1,7 +1,8 @@
 import { parseArgs } from 'node:util';
 import { events, forward, hooks, receive, reconcile, sessions } from './commands/capture.js';
 import { central, ship } from './commands/central.js';
-import { alertsCommand, autonomy, item, project, serve } from './commands/observe.js';
+import { status } from './commands/status.js';
+import { alertsCommand, autonomy, item, project, prune, serve } from './commands/observe.js';
 import { check, reindex } from './commands/project.js';
 import { newItem, type } from './commands/types.js';
 import { type Io, message, UsageError, type Values } from './io.js';
@@ -27,6 +28,12 @@ Projects observed by this installation:
   project add <root>     Register a project (its .ledgerwake/project.yaml, or --config)
     --worktrees <dir>    A directory holding the project's worktrees (repeatable)
   project list           List registered projects
+
+Health and retention:
+  status                 Is this installation working and safe? Exit 1 if something needs attention
+
+  prune                  Delete stored full content older than --content-older-than <N>h|d|w
+                         (reports only unless --yes; events and cost are kept)
 
 Capture (Claude Code):
   hooks print            Print the hook settings that install the capture hook
@@ -82,6 +89,8 @@ const COMMANDS: Record<string, Command> = {
   autonomy,
   central,
   ship,
+  status,
+  prune,
 };
 
 /** Runs the CLI. Exit codes: 0 success, 1 check found errors (or no events), 2 usage or configuration error. */
@@ -103,6 +112,8 @@ export async function run(argv: string[], io: Io): Promise<number> {
         port: { type: 'string' },
         host: { type: 'string' },
         'allow-remote': { type: 'boolean', default: false },
+        'content-older-than': { type: 'string' },
+        yes: { type: 'boolean', default: false },
         name: { type: 'string' },
         team: { type: 'string' },
         scope: { type: 'string' },

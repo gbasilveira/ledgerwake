@@ -327,3 +327,16 @@ documented in SECURITY.md).
   with unsent events.
 - **Not attributed.** Events reach the central server without project or item
   links (those are computed from the project registry and git on the machine).
+
+## D-023 — `lw status` and content retention (2026-10-05)
+
+- `lw status` is the safety check for a live installation. Its first real
+  catch was in its own test: a spool file with no event name was correctly moved
+  to `failed/` and reported, because such files keep unredacted payloads.
+- `lw prune --content-older-than` is retention for full content. Content is
+  addressed by hash and shared, so a body is removed only when no event at or
+  after the cutoff refers to it (a first test assumed otherwise and was wrong).
+  SQLite keeps deleted bytes in its file unless told not to, so stores now open
+  with `secure_delete` and pruning vacuums and truncates the log; the test reads
+  the raw database and WAL files and checks the removed text is gone.
+- It reports only unless `--yes` is passed.

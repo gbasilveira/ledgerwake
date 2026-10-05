@@ -199,3 +199,45 @@ export function refuseRemote(host: string, values: Values): void {
       'Use 127.0.0.1, or pass --allow-remote to accept the risk (put it behind your own authenticating proxy).',
   );
 }
+
+const UNITS: Record<string, number> = { h: 3_600_000, d: 86_400_000, w: 7 * 86_400_000 };
+
+/** `7d`, `36h`, `2w` → milliseconds. */
+export function parseAge(text: string): number | null {
+  const m = /^(\d{1,5})([hdw])$/.exec(text.trim());
+  return m ? Number(m[1]) * UNITS[m[2]!]! : null;
+}
+
+/**
+ * `lw prune --content-older-than 90d [--yes]`: retention for full content (SPEC §12, question 4).
+ * Without --yes it only reports. Events and cost are kept; only prompts, responses and tool output
+ * go, overwritten in the file.
+ */
+export function prune(_args: string[], values: Values, io: Io): number {
+  const age =
+    typeof values['content-older-than'] === 'string'
+      ? parseAge(values['content-older-than'])
+      : null;
+  if (age === null) throw new UsageError('Usage: lw prune --content-older-than <N>h|d|w [--yes]');
+  const cutoff = new Date((io.clock ?? systemClock).now() - age).toISOString();
+  const home = homeDir(values, io);
+  const store = Store.open(paths(home).store, { redactor: loadRedactor(home) });
+  try {
+    const would = store.prunableContent(cutoff);
+    const kb = (n: number) => `${(n / 1024).toFixed(1)} KiB`;
+    if (values.yes !== true) {
+      io.out(
+        `would remove ${would.bodies} content body(ies), ${kb(would.bytes)}, not referenced by events since ${cutoff}`,
+      );
+      io.out('Nothing was changed. Run again with --yes to delete it (events and cost are kept).');
+      return 0;
+    }
+    const removed = store.pruneContent(cutoff);
+    io.out(
+      `removed ${removed.bodies} content body(ies), ${kb(removed.bytes)}; the file was compacted`,
+    );
+    return 0;
+  } finally {
+    store.close();
+  }
+}
